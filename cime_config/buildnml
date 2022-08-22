@@ -398,7 +398,7 @@ def buildnml(case, caseroot, compname):
         # call build-namelist- output will go in $CASEBUILD/mpasoconf/mpaso_in
         # -----------------------------------------------------
 
-        sysmod =  "{}/E3SM/components/mpas-ocean/bld/build-namelist".format(srcroot)
+        sysmod =  "{}/components/mpas-ocean/bld/build-namelist".format(srcroot)
         sysmod += " -infile {}/cesm_namelist".format(mpasoconf_dir)
         sysmod += " -caseroot {}".format(caseroot)
         sysmod += " -casebuild {}".format(casebuild)
