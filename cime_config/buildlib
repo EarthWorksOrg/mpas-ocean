@@ -1,0 +1,241 @@
+#!/usr/bin/env python3
+"""
+CIME interface to build the mpaso component library
+"""
+# pylint: disable=unused-wildcard-import, multiple-imports, wildcard-import
+# pylint: disable=wrong-import-position, too-many-locals, too-many-branches
+# pylint: disable=invalid-name, too-many-statements
+import os, shutil, sys, glob, imp
+
+CIMEROOT = os.environ.get("CIMEROOT")
+if CIMEROOT is None:
+    raise SystemExit("ERROR: must set CIMEROOT environment variable")
+sys.path.append(os.path.join(CIMEROOT, "scripts", "Tools"))
+
+from standard_script_setup import *
+from CIME.case import Case
+from CIME.utils import expect, run_cmd
+from CIME.buildlib import parse_input
+from CIME.build import get_standard_makefile_args
+
+logger = logging.getLogger(__name__)
+
+###############################################################################
+def _copy_files_to_blddir(case):
+###############################################################################
+
+    srcroot = case.get_value("SRCROOT")
+    objroot = case.get_value("OBJROOT")
+    caseroot = case.get_value("CASEROOT")
+    cimeroot = case.get_value("CIMEROOT")
+    driver = case.get_value("COMP_INTERFACE")
+
+    # create bld directories
+    dirnames = [os.path.join(objroot, "ocn", "obj"),
+                os.path.join(objroot, "ocn", "obj", "regional_stats_inc"),
+                os.path.join(objroot, "ocn", "obj", "time_series_inc"),
+                os.path.join(objroot, "ocn", "obj", "rpn_calc_inc"),
+                os.path.join(objroot, "ocn", "inc"),
+                os.path.join(objroot, "ocn", "tracer_groups"),
+                os.path.join(objroot, "ocn", "analysis_members"),
+                os.path.join(objroot, "ocn", "source"),
+                os.path.join(objroot, "ocn", "input"),
+                os.path.join(objroot, "ocn", "BGC"),
+                os.path.join(objroot, "ocn", "gotm"),
+                os.path.join(objroot, "ocn", "cvmix")]
+    for dirname in dirnames:
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
+
+    # copy source files into obj dir
+    srcroot = case.get_value("SRCROOT")
+    glob_dirs = [os.path.join(srcroot, "E3SM/components/mpas-framework", "src", "framework"),
+                 os.path.join(srcroot, "E3SM/components/mpas-framework", "src", "operators"),
+                 os.path.join(srcroot, "E3SM/components/mpas-framework", "src", "tools", "registry"),
+                 os.path.join(srcroot, "E3SM/components/mpas-framework", "src", "external", "ezxml"),
+                 os.path.join(srcroot, "E3SM/components/mpas-framework", "src", "external", "esmfloc_time_f90"),
+                 os.path.join(srcroot, "E3SM/components/mpas-framework", "src", "core_ocean", "shared"),
+                 os.path.join(srcroot, "E3SM/components/mpas-framework", "src", "core_ocean", "analysis_members"),
+                 os.path.join(srcroot, "E3SM/components/mpas-framework", "src", "core_ocean", "mode_analysis"),
+                 os.path.join(srcroot, "E3SM/components/mpas-framework", "src", "core_ocean", "mode_forward"),
+                 os.path.join(srcroot, "E3SM/components/mpas-framework", "src", "core_ocean", "BGC"),
+                 os.path.join(srcroot, "E3SM/components/mpas-framework", "src", "core_ocean", "cvmix", "src", "shared"),
+                 os.path.join(srcroot, "E3SM/components/mpas-framework", "src", "core_ocean", "gotm", "src", "util"),
+                 os.path.join(srcroot, "E3SM/components/mpas-framework", "src", "core_ocean", "gotm", "src", "turbulence"),
+                 os.path.join(srcroot, "E3SM/components/mpas-framework", "src", "core_ocean"),
+                 os.path.join(srcroot, "E3SM/components/mpas-framework", "src", "core_ocean", "driver")]
+
+    if driver == 'nuopc':
+        glob_dirs.append(os.path.join(srcroot,"E3SM/components","mpas-ocean","driver_nuopc"))
+
+    dest_dir = os.path.join(objroot, "ocn", "source")
+    for glob_dir in glob_dirs:
+        filenames = glob.glob(glob_dir + "/*.F")
+        for filename in filenames:
+            shutil.copy2(filename, dest_dir)
+        filenames = glob.glob(glob_dir + "/*.F90")
+        for filename in filenames:
+            shutil.copy2(filename, dest_dir)
+        filenames = glob.glob(glob_dir + "/*.inc")
+        for filename in filenames:
+            shutil.copy2(filename, dest_dir)
+        filenames = glob.glob(glob_dir + "/*.c")
+        for filename in filenames:
+            shutil.copy2(filename, dest_dir)
+        filenames = glob.glob(glob_dir + "/*.h")
+        for filename in filenames:
+            shutil.copy2(filename, dest_dir)
+
+    glob_dirs = [os.path.join(srcroot, "E3SM/components/mpas-framework", "src", "core_ocean", "gotm", "include")]
+    dest_dir = os.path.join(objroot, "ocn", "obj")
+    for glob_dir in glob_dirs:
+        filenames = glob.glob(glob_dir + "/*.inc")
+        for filename in filenames:
+            shutil.copy2(filename, dest_dir)
+        filenames = glob.glob(glob_dir + "/*.h")
+        for filename in filenames:
+            shutil.copy2(filename, dest_dir)
+
+    glob_dirs = [os.path.join(srcroot, "E3SM/components/mpas-ocean", "src", "analysis_members", "regional_stats_inc")]
+    dest_dir = os.path.join(objroot, "ocn", "obj", "regional_stats_inc")
+    for glob_dir in glob_dirs:
+        filenames = glob.glob(glob_dir + "/*.F")
+        for filename in filenames:
+            shutil.copy2(filename, dest_dir)
+        filenames = glob.glob(glob_dir + "/*.inc")
+        for filename in filenames:
+            shutil.copy2(filename, dest_dir)
+
+    glob_dirs = [os.path.join(srcroot, "E3SM/components/mpas-ocean", "src", "analysis_members", "time_series_inc")]
+    dest_dir = os.path.join(objroot, "ocn", "obj", "time_series_inc")
+    for glob_dir in glob_dirs:
+        filenames = glob.glob(glob_dir + "/*.F")
+        for filename in filenames:
+            shutil.copy2(filename, dest_dir)
+        filenames = glob.glob(glob_dir + "/*.inc")
+        for filename in filenames:
+            shutil.copy2(filename, dest_dir)
+
+    glob_dirs = [os.path.join(srcroot, "E3SM/components/mpas-ocean", "src", "analysis_members", "rpn_calc_inc")]
+    dest_dir = os.path.join(objroot, "ocn", "obj", "rpn_calc_inc")
+    for glob_dir in glob_dirs:
+        filenames = glob.glob(glob_dir + "/*.F")
+        for filename in filenames:
+            shutil.copy2(filename, dest_dir)
+        filenames = glob.glob(glob_dir + "/*.inc")
+        for filename in filenames:
+            shutil.copy2(filename, dest_dir)
+
+    glob_dirs = [os.path.join(srcroot, "E3SM/components/mpas-ocean", "src")]
+    dest_dir = os.path.join(objroot, "ocn")
+    for glob_dir in glob_dirs:
+        filenames = glob.glob(glob_dir + "/Registry.xml")
+        for filename in filenames:
+            shutil.copy2(filename, dest_dir)
+
+    glob_dirs = [os.path.join(srcroot, "E3SM/components/mpas-ocean", "src", "tracer_groups")]
+    dest_dir = os.path.join(objroot, "ocn", "tracer_groups")
+    for glob_dir in glob_dirs:
+        filenames = glob.glob(glob_dir + "/Regis*")
+        for filename in filenames:
+            shutil.copy2(filename, dest_dir)
+
+    glob_dirs = [os.path.join(srcroot, "E3SM/components/mpas-ocean", "src", "analysis_members")]
+    dest_dir = os.path.join(objroot, "ocn", "analysis_members")
+    for glob_dir in glob_dirs:
+        filenames = glob.glob(glob_dir + "/Regis*")
+        for filename in filenames:
+            shutil.copy2(filename, dest_dir)
+
+###############################################################################
+def _build_mpaso():
+###############################################################################
+
+    caseroot, libroot, _ = parse_input(sys.argv)
+
+    with Case(caseroot, read_only=False) as case:
+        srcroot = case.get_value("SRCROOT")
+        # call mpaso's buildcpp to set the cppdefs
+        #cmd = os.path.join(os.path.join(srcroot, "components", "mpaso", "cime_config", "buildcpp"))
+        #logger.info("     ...calling mpaso buildcpp to set build time options")
+        #try:
+        #    mod = imp.load_source("buildcpp", cmd)
+        #    mpaso_cppdefs = mod.buildcpp(case)
+        #except:
+        #    raise
+
+    with Case(caseroot) as case:
+        casetools = case.get_value("CASETOOLS")
+        objroot = case.get_value("OBJROOT")
+        srcroot = case.get_value("SRCROOT")
+        gmake_j = case.get_value("GMAKE_J")
+        gmake = case.get_value("GMAKE")
+        caseroot = case.get_value("CASEROOT")
+        # copy all F90 files to $OBJROOT/ocn/source
+        _copy_files_to_blddir(case)
+
+        # create Filepath file
+        objroot = case.get_value("OBJROOT")
+        filepath_file = os.path.join(objroot, "ocn", "obj", "Filepath")
+        if not os.path.isfile(filepath_file):
+            paths = [os.path.join(caseroot,"SourceMods","src.mpaso"),os.path.join(objroot, "ocn", "source")]
+            with open(filepath_file, "w") as filepath:
+                filepath.write("\n".join(paths))
+                filepath.write("\n")
+
+        #doesnt buile with this file
+        cmd = "rm ode_solvers_template.F90"
+        rc, out, err = run_cmd(cmd, from_dir=os.path.join(objroot, "ocn", "source"))
+        expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
+
+        #build the code that creates the registry *cheyenne, intel specific)
+        cmd = "icc -c ../source/ezxml.c"    
+        rc, out, err = run_cmd(cmd, from_dir=os.path.join(objroot, "ocn", "obj"))
+        expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
+        cmd = "icc -c ../source/utility.c"    
+        rc, out, err = run_cmd(cmd, from_dir=os.path.join(objroot, "ocn", "obj"))
+        expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
+        cmd = "icc -c ../source/fortprintf.c"    
+        rc, out, err = run_cmd(cmd, from_dir=os.path.join(objroot, "ocn", "obj"))
+        expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
+        cmd = "icc -c ../source/gen_inc.c"    
+        rc, out, err = run_cmd(cmd, from_dir=os.path.join(objroot, "ocn", "obj"))
+        expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
+        cmd = "icc -c ../source/dictionary.c"    
+        rc, out, err = run_cmd(cmd, from_dir=os.path.join(objroot, "ocn", "obj"))
+        expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
+        cmd = "icc -c ../source/parse.c"    
+        rc, out, err = run_cmd(cmd, from_dir=os.path.join(objroot, "ocn", "obj"))
+        expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
+        cmd = "icc -o parse parse.o dictionary.o gen_inc.o fortprintf.o utility.o ezxml.o"
+        rc, out, err = run_cmd(cmd, from_dir=os.path.join(objroot, "ocn", "obj"))
+        expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
+        cmd = "cpp -P -traditional -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16 -DCPRPGI -DMPAS_OPENACC -DMPAS_NO_LOG_REDIRECT -DUSE_PIO2 -DMPAS_NO_ESMF_INIT -DMPAS_EXTERNAL_ESMF_LIB -DMPAS_ESM_SHR_CONST -DMPAS_PERF_MOD_TIMERS -DOFFSET64BIT -D_MPI -DMPAS_NAMELIST_SUFFIX= -DMPAS_EXE_NAME= -DCORE_OCEAN -DEXCLUDE_INIT_MODE -DUSE_LAPACK -Uvector Registry.xml > Registry_processed.xml"
+        rc, out, err = run_cmd(cmd, from_dir=os.path.join(objroot, "ocn"))
+        expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
+        cmd = "../obj/parse ../Registry_processed.xml"
+        rc, out, err = run_cmd(cmd, from_dir=os.path.join(objroot, "ocn", "inc"))
+        expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
+
+        # build the library
+        makefile = os.path.join(casetools, "Makefile")
+        complib = os.path.join(libroot, "libocn.a")
+        cmd = "{} complib -j {} MODEL=mpaso COMPLIB={} -f {} USER_CPPDEFS=\"-DUSE_PIO2 -D_MPI -DEXCLUDE_INIT_MODE -DMPAS_NO_ESMF_INIT -DMPAS_EXTERNAL_ESMF_LIB -DMPAS_NAMELIST_SUFFIX=ocean\" FIXEDFLAGS=-free {}" \
+            .format(gmake, gmake_j, complib, makefile, get_standard_makefile_args(case))
+
+        rc, out, err = run_cmd(cmd, from_dir=os.path.join(objroot, "ocn", "obj"))
+        expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
+
+        # note that f90 files may not exist on all machines
+        f90_dir = os.path.join(objroot, "ocn", "source", "f90")
+        if not os.path.exists(f90_dir):
+            os.makedirs(f90_dir)
+        for filename in glob.glob('*.f90'):
+            shutil.move(filename, f90_dir)
+
+        logger.info("Command %s completed with output %s\nerr %s", cmd, out, err)
+
+###############################################################################
+
+if __name__ == "__main__":
+    _build_mpaso()
