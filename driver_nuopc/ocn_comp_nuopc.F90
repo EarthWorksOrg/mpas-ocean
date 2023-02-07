@@ -37,7 +37,7 @@ module ocn_comp_nuopc
   use ocn_config
   use ocn_gm
   use ocn_diagnostics
-  !use mpas_ocn_constants, only : coupleAlarmID
+  use ocn_constants, only : coupleAlarmID
   use ocn_tracer_ecosys
   use ocn_tracer_CFC
   use ocn_tracer_surface_restoring
@@ -81,8 +81,8 @@ module ocn_comp_nuopc
   integer :: itimestep   ! time step number for MPAS
 
   integer :: ocnLogUnit ! unit number for ocn log
-  character (len=*), parameter :: coupleAlarmID = 'coupling'
-   character(len=StrKIND) :: coupleTimeStamp
+!  character (len=*), parameter :: coupleAlarmID = 'coupling'
+  character(len=StrKIND) :: coupleTimeStamp
 
 ! !PRIVATE MODULE VARIABLES
 
