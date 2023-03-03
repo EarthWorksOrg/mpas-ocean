@@ -19,16 +19,16 @@
 
 module ocn_okubo_weiss
 
-   use mpas_derived_types, dummy1 =>qsort
-   use mpas_pool_routines, dummy2 =>qsort
-   use mpas_timer, dummy3 =>qsort
+   use mpas_derived_types
+   use mpas_pool_routines
+   use mpas_timer
    use mpas_dmpar
-   use mpas_timekeeping, dummy5 =>qsort
+   use mpas_timekeeping
    use mpas_constants
 
    use ocn_constants
-   use ocn_config, dummy8 =>qsort
-   use ocn_diagnostics_variables, dummy9 =>qsort
+   use ocn_config
+   use ocn_diagnostics_variables
    use mpas_matrix_operations
    use iso_c_binding
 
