@@ -591,7 +591,8 @@ contains
            endif
           iceRunoffFlux(iCell)        = foxx_rofi (gcell) * med2mod_areacor(gcell)
            if(iceRunoffFlux(iCell) < 0.0_RKIND) then
-               call shr_sys_abort ('Error: incoming rofi_F is negative')
+               !call shr_sys_abort ('Error: incoming rofi_F is negative')
+               iceRunoffFlux(iCell) = 0.0_RKIND
            end if
            if (config_remove_AIS_coupler_runoff) then
               if (latCell(iCell) < -1.04719666667_RKIND) then ! 60S in radians

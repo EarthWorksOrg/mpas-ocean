@@ -73,8 +73,6 @@ def buildnml(case, caseroot, compname):
     restoring_file = ''
     analysis_mask_file = ''
     eco_forcing_file = ''
-    din_loc_tem = "{}".format(din_loc_root)
-    din_loc_tem = "{}/ocn/mpas-o/{}".format(din_loc_root,ocn_mask)
     if ocn_grid == 'oEC60to30v3':
         decomp_date = '161222'
         decomp_prefix = 'mpas-o.graph.info.'
@@ -144,61 +142,59 @@ def buildnml(case, caseroot, compname):
             logger.warning("         But no file available for this grid.")
 
     elif ocn_grid == 'oQU120':
-        decomp_date = 'QU120'
-        decomp_prefix = 'mpas-o.graph.info.'
-        ic_date = '160318'
+        decomp_date = '230524'
+        decomp_prefix = 'mpas-o.graph.info.QU120.'
+        restoring_file = 'sss.monthlyClimatology_230417.oQU120.nc'
+        analysis_mask_file = 'QU120_mocBasinsAndTransects20210623.nc'
+        ic_date = '230524'
         ic_prefix = 'ocean.QU.120km'
-        din_loc_tem = '/glade/p/univ/ucsu0085/inputdata'
         if ocn_ic_mode == 'spunup':
             logger.warning("WARNING: The specified compset is requesting ocean ICs spunup from a G-case")
             logger.warning("         But no file available for this grid.")
 
     elif ocn_grid == 'oQU060':
-        decomp_date = 'QU060'
-        decomp_prefix = 'mpas-o.graph.info.'
-        ic_date = '220131'
+        decomp_date = '230907'
+        decomp_prefix = 'mpas-o.graph.info.QU060.'
+        restoring_file = 'sss.monthlyClimatology_230624.oQU060.nc'
+        analysis_mask_file = 'QU60_mocBasinsAndTransects20210623.nc'
+        ic_date = '230907'
         ic_prefix = 'ocean.QU.060km'
-        din_loc_tem = '/glade/p/univ/ucsu0085/inputdata'
         if ocn_ic_mode == 'spunup':
             logger.warning("WARNING: The specified compset is requesting ocean ICs spunup from a G-case")
             logger.warning("         But no file available for this grid.")
 
     elif ocn_grid == 'oQU030':
-        decomp_date = 'QU030'
-        decomp_prefix = 'mpas-o.graph.info.'
-        ic_date = '220131'
+        decomp_date = '230907'
+        decomp_prefix = 'mpas-o.graph.info.QU030.'
+        ic_date = '230907'
         ic_prefix = 'ocean.QU.030km'
-        din_loc_tem = '/glade/p/univ/ucsu0085/inputdata'
         if ocn_ic_mode == 'spunup':
             logger.warning("WARNING: The specified compset is requesting ocean ICs spunup from a G-case")
             logger.warning("         But no file available for this grid.")
 
     elif ocn_grid == 'oQU015':
-        decomp_date = 'QU015'
-        decomp_prefix = 'mpas-o.graph.info.'
-        ic_date = '220131'
+        decomp_date = '230907'
+        decomp_prefix = 'mpas-o.graph.info.QU015.'
+        ic_date = '230907'
         ic_prefix = 'ocean.QU.015km'
-        din_loc_tem = '/glade/p/univ/ucsu0085/inputdata'
         if ocn_ic_mode == 'spunup':
             logger.warning("WARNING: The specified compset is requesting ocean ICs spunup from a G-case")
             logger.warning("         But no file available for this grid.")
 
     elif ocn_grid == 'oQU0075':
-        decomp_date = 'QU0075'
-        decomp_prefix = 'mpas-o.graph.info.'
-        ic_date = '220131'
+        decomp_date = '230907'
+        decomp_prefix = 'mpas-o.graph.info.QU0075.'
+        ic_date = '230907'
         ic_prefix = 'ocean.QU.0075km'
-        din_loc_tem = '/glade/p/univ/ucsu0085/inputdata'
         if ocn_ic_mode == 'spunup':
             logger.warning("WARNING: The specified compset is requesting ocean ICs spunup from a G-case")
             logger.warning("         But no file available for this grid.")
 
     elif ocn_grid == 'oQU00375':
-        decomp_date = 'QU00375'
-        decomp_prefix = 'mpas-o.graph.info.'
-        ic_date = '220131'
+        decomp_date = '230907'
+        decomp_prefix = 'mpas-o.graph.info.QU00375.'
+        ic_date = '230907'
         ic_prefix = 'ocean.QU.00375km'
-        din_loc_tem = '/glade/p/univ/ucsu0085/inputdata'
         if ocn_ic_mode == 'spunup':
             logger.warning("WARNING: The specified compset is requesting ocean ICs spunup from a G-case")
             logger.warning("         But no file available for this grid.")
@@ -339,7 +335,7 @@ def buildnml(case, caseroot, compname):
     # Note: this is not setup for multiple instances
     #--------------------------------------------------------------------
 
-    input_file = "{}/{}.{}.nc".format(din_loc_tem, ic_prefix, ic_date)
+    input_file = "{}/ocn/mpas-o/{}/{}.{}.nc".format(din_loc_root, ocn_mask, ic_prefix, ic_date)
     if run_type == 'hybrid' or run_type == 'branch':
         input_file = "{}/{}.mpaso.rst.{}_{}.nc".format(rundir, run_refcase, run_refdate, run_reftod)
         expect(os.path.exists(input_file), "ERROR mpaso buildnml: missing specified restart file for branch or hybrid run: " + input_file)
