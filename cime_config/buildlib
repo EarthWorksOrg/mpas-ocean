@@ -166,8 +166,12 @@ def _build_mpaso():
         compiler = case.get_value("COMPILER")
         if compiler == 'intel':
             fixedflags =  '-free'
+        elif compiler == 'intel-oneapi':
+            fixedflags =  '-free'
         elif compiler == 'gnu':
             fixedflags =  '-ffree-form'
+        elif compiler == 'nvhpc':
+            fixedflags =  '-Mfree'
         else:
             fixedflags = ''
 
