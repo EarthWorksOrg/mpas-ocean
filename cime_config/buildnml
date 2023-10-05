@@ -438,9 +438,7 @@ def buildnml(case, caseroot, compname):
         lines.append('                  type="none"')
         if ocn_grid.startswith("oRRS1"):
             lines.append('                  io_type="pnetcdf,cdf5"')
-        elif ocn_grid.startswith("oQU01"):
-            lines.append('                  io_type="pnetcdf,cdf5"')
-        elif ocn_grid.startswith("oQU00"):
+        elif ocn_grid.startswith("oQU"):
             lines.append('                  io_type="pnetcdf,cdf5"')
         else:
             lines.append('                  io_type="{}"'.format(ocn_pio_typename))
@@ -451,9 +449,7 @@ def buildnml(case, caseroot, compname):
         lines.append('                  type="input"')
         if ocn_grid.startswith("oRRS1"):
             lines.append('                  io_type="pnetcdf,cdf5"')
-        elif ocn_grid.startswith("oQU01"):
-            lines.append('                  io_type="pnetcdf,cdf5"')
-        elif ocn_grid.startswith("oQU00"):
+        elif ocn_grid.startswith("oQU"):
             lines.append('                  io_type="pnetcdf,cdf5"')
         else:
             lines.append('                  io_type="{}"'.format(ocn_pio_typename))
@@ -476,9 +472,7 @@ def buildnml(case, caseroot, compname):
         lines.append('                  type="input;output"')
         if ocn_grid.startswith("oRRS1"):
             lines.append('                  io_type="pnetcdf,cdf5"')
-        elif ocn_grid.startswith("oQU01"):
-            lines.append('                  io_type="pnetcdf,cdf5"')
-        elif ocn_grid.startswith("oQU00"):
+        elif ocn_grid.startswith("oQU"):
             lines.append('                  io_type="pnetcdf,cdf5"')
         else:
             lines.append('                  io_type="{}"'.format(ocn_pio_typename))
@@ -499,6 +493,8 @@ def buildnml(case, caseroot, compname):
         lines.append('        type="output"')
         if ocn_grid.startswith("oRRS1"):
             lines.append('        io_type="pnetcdf,cdf5"')
+        elif ocn_grid.startswith("oQU"):
+            lines.append('                  io_type="pnetcdf,cdf5"')
         else:
             lines.append('        io_type="{}"'.format(ocn_pio_typename))
 
@@ -570,7 +566,12 @@ def buildnml(case, caseroot, compname):
         lines.append('')
         lines.append('<stream name="block_debug_output"')
         lines.append('        type="output"')
-        lines.append('        io_type="{}"'.format(ocn_pio_typename))
+        if ocn_grid.startswith("oRRS1"):
+            lines.append('        io_type="pnetcdf,cdf5"')
+        elif ocn_grid.startswith("oQU"):
+            lines.append('                  io_type="pnetcdf,cdf5"')
+        else:
+            lines.append('        io_type="{}"'.format(ocn_pio_typename))
         lines.append('        filename_template="{}.mpaso.output_debug_block_$B.nc"'.format(casename))
         lines.append('        reference_time="01-01-01_00:00:00"')
         lines.append('        filename_interval="1000-00-00_00:00:00"')
@@ -783,6 +784,8 @@ def buildnml(case, caseroot, compname):
         lines.append('        precision="single"')
         if ocn_grid.startswith("oRRS1"):
             lines.append('        io_type="pnetcdf,cdf5"')
+        elif ocn_grid.startswith("oQU"):
+            lines.append('                  io_type="pnetcdf,cdf5"')
         else:
             lines.append('        io_type="{}"'.format(ocn_pio_typename))
 
@@ -1131,6 +1134,8 @@ def buildnml(case, caseroot, compname):
         lines.append('        precision="single"')
         if ocn_grid.startswith("oRRS1"):
             lines.append('        io_type="pnetcdf,cdf5"')
+        elif ocn_grid.startswith("oQU"):
+            lines.append('                  io_type="pnetcdf,cdf5"')
         else:
             lines.append('        io_type="{}"'.format(ocn_pio_typename))
 
@@ -1359,6 +1364,8 @@ def buildnml(case, caseroot, compname):
         lines.append('        precision="single"')
         if ocn_grid.startswith("oRRS1"):
             lines.append('        io_type="pnetcdf,cdf5"')
+        elif ocn_grid.startswith("oQU"):
+            lines.append('                  io_type="pnetcdf,cdf5"')
         else:
             lines.append('        io_type="{}"'.format(ocn_pio_typename))
 
@@ -1420,6 +1427,8 @@ def buildnml(case, caseroot, compname):
         lines.append('        precision="single"')
         if ocn_grid.startswith("oRRS1"):
             lines.append('        io_type="pnetcdf,cdf5"')
+        elif ocn_grid.startswith("oQU"):
+            lines.append('                  io_type="pnetcdf,cdf5"')
         else:
             lines.append('        io_type="{}"'.format(ocn_pio_typename))
 
@@ -1520,6 +1529,8 @@ def buildnml(case, caseroot, compname):
         lines.append('        type="input;output"')
         if ocn_grid.startswith("oRRS1"):
             lines.append('        io_type="pnetcdf,cdf5"')
+        elif ocn_grid.startswith("oQU"):
+            lines.append('                  io_type="pnetcdf,cdf5"')
         else:
             lines.append('        io_type="{}"'.format(ocn_pio_typename))
 
@@ -1536,6 +1547,8 @@ def buildnml(case, caseroot, compname):
         lines.append('        type="input;output"')
         if ocn_grid.startswith("oRRS1"):
             lines.append('        io_type="pnetcdf,cdf5"')
+        elif ocn_grid.startswith("oQU"):
+            lines.append('                  io_type="pnetcdf,cdf5"')
         else:
             lines.append('        io_type="{}"'.format(ocn_pio_typename))
 
@@ -1552,6 +1565,8 @@ def buildnml(case, caseroot, compname):
         lines.append('        type="input;output"')
         if ocn_grid.startswith("oRRS1"):
             lines.append('        io_type="pnetcdf,cdf5"')
+        elif ocn_grid.startswith("oQU"):
+            lines.append('                  io_type="pnetcdf,cdf5"')
         else:
             lines.append('        io_type="{}"'.format(ocn_pio_typename))
 
