@@ -221,7 +221,7 @@ def _build_mpaso():
         cmd = "mpicc -o parse parse.o dictionary.o gen_inc.o fortprintf.o utility.o ezxml.o"
         rc, out, err = run_cmd(cmd, from_dir=os.path.join(objroot, "ocn", "obj"))
         expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
-        cmd = "cpp -P -traditional -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16 -DCPRPGI -DMPAS_OPENACC -DMPAS_NO_LOG_REDIRECT -DUSE_PIO2 -DMPAS_EXTERNAL_ESMF_LIB -DMPAS_NO_ESMF_INIT -DMPAS_ESM_SHR_CONST -DMPAS_PERF_MOD_TIMERS -DOFFSET64BIT -D_MPI -DMPAS_NAMELIST_SUFFIX= -DMPAS_EXE_NAME= -DCORE_OCEAN -DEXCLUDE_INIT_MODE -DUSE_LAPACK -Uvector Registry.xml > Registry_processed.xml"
+        cmd = "cpp -P -traditional -DFORTRANUNDERSCORE -DNO_SHR_VMATH -DNO_R16 -DCPRPGI -DMPAS_OPENACC -DMPAS_NO_LOG_REDIRECT -DUSE_PIO2 -DMPAS_PIO_SUPPORT -DMPAS_EXTERNAL_ESMF_LIB -DMPAS_NO_ESMF_INIT -DMPAS_ESM_SHR_CONST -DMPAS_PERF_MOD_TIMERS -DOFFSET64BIT -D_MPI -DMPAS_NAMELIST_SUFFIX= -DMPAS_EXE_NAME= -DCORE_OCEAN -DEXCLUDE_INIT_MODE -DUSE_LAPACK -Uvector Registry.xml > Registry_processed.xml"
         rc, out, err = run_cmd(cmd, from_dir=os.path.join(objroot, "ocn"))
         expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
         cmd = "../obj/parse ../Registry_processed.xml"
@@ -231,7 +231,7 @@ def _build_mpaso():
         # build the library
         makefile = os.path.join(casetools, "Makefile")
         complib = os.path.join(libroot, "libocn.a")
-        cmd = "{} complib -j {} MODEL=mpaso COMPLIB={} -f {} USER_CPPDEFS=\"-DUSE_PIO2 -D_MPI -DEXCLUDE_INIT_MODE -DMPAS_NO_ESMF_INIT -DMPAS_EXTERNAL_ESMF_LIB -DMPAS_NAMELIST_SUFFIX=ocean\" FIXEDFLAGS={} {}" \
+        cmd = "{} complib -j {} MODEL=mpaso COMPLIB={} -f {} USER_CPPDEFS=\"-DUSE_PIO2 -DMPAS_PIO_SUPPORT -D_MPI -DEXCLUDE_INIT_MODE -DMPAS_NO_ESMF_INIT -DMPAS_EXTERNAL_ESMF_LIB -DMPAS_NAMELIST_SUFFIX=ocean\" FIXEDFLAGS={} {}" \
             .format(gmake, gmake_j, complib, makefile, fixedflags, get_standard_makefile_args(case))
 
         rc, out, err = run_cmd(cmd, from_dir=os.path.join(objroot, "ocn", "obj"))
