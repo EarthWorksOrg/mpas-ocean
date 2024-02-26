@@ -20,7 +20,7 @@
 
 module ocn_high_freq_thickness_hmix_del2
 
-   use mpas_timer
+   use mpaso_timer
    use ocn_constants
    use ocn_config
    use ocn_mesh

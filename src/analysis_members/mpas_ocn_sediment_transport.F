@@ -18,11 +18,11 @@
 
 module ocn_sediment_transport
 
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_dmpar
-   use mpas_timekeeping
-   use mpas_stream_manager
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_dmpar
+   use mpaso_timekeeping
+   use mpaso_stream_manager
 
    use ocn_constants
    use ocn_diagnostics_variables

@@ -19,17 +19,17 @@
 
 module ocn_okubo_weiss
 
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_timer
-   use mpas_dmpar
-   use mpas_timekeeping
-   use mpas_constants
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_timer
+   use mpaso_dmpar
+   use mpaso_timekeeping
+   use mpaso_constants
 
    use ocn_constants
    use ocn_config
    use ocn_diagnostics_variables
-   use mpas_matrix_operations
+   use mpaso_matrix_operations
    use iso_c_binding
 
    implicit none

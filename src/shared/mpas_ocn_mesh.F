@@ -26,11 +26,11 @@
 module ocn_mesh
 
    ! module dependencies
-   use mpas_dmpar
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_constants
-   use mpas_log
+   use mpaso_dmpar
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_constants
+   use mpaso_log
 
    use ocn_config
 

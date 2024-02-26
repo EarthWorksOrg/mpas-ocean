@@ -7,11 +7,11 @@
 !
 module ocn_gm
 
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_timer
-   use mpas_constants
-   use mpas_threading
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_timer
+   use mpaso_constants
+   use mpaso_threading
 
    use ocn_constants
    use ocn_config

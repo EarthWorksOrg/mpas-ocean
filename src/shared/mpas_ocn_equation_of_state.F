@@ -20,17 +20,17 @@
 
 module ocn_equation_of_state
 
-   use mpas_timer
-   use mpas_kind_types
-   use mpas_derived_types
-   use mpas_pool_routines
+   use mpaso_timer
+   use mpaso_kind_types
+   use mpaso_derived_types
+   use mpaso_pool_routines
    use ocn_equation_of_state_linear
    use ocn_equation_of_state_jm
    use ocn_equation_of_state_wright
    use ocn_constants
    use ocn_config
    use ocn_diagnostics_variables
-   use mpas_log
+   use mpaso_log
 
    implicit none
    private

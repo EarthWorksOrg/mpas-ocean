@@ -21,9 +21,9 @@
 module ocn_tracer_advection_std
 
    ! module includes
-   use mpas_kind_types
-   use mpas_derived_types
-   use mpas_log
+   use mpaso_kind_types
+   use mpaso_derived_types
+   use mpaso_log
    use ocn_config
    use ocn_mesh
    use ocn_tracer_advection_shared

@@ -34,13 +34,13 @@ module ocn_particle_list
 #ifdef _MPI
   use mpi
 #endif
-  use mpas_kind_types
-  use mpas_io_units
-  use mpas_derived_types
-  use mpas_dmpar
-  use mpas_block_decomp
-  use mpas_pool_routines
-  use mpas_timer
+  use mpaso_kind_types
+  use mpaso_io_units
+  use mpaso_derived_types
+  use mpaso_dmpar
+  use mpaso_block_decomp
+  use mpaso_pool_routines
+  use mpaso_timer
 
   ! blanket statments to restrict implicit module's scope
   implicit none

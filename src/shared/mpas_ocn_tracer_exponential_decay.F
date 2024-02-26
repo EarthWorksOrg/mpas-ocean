@@ -19,9 +19,9 @@
 
 module ocn_tracer_exponential_decay
 
-   use mpas_kind_types
-   use mpas_derived_types
-   use mpas_pool_routines
+   use mpaso_kind_types
+   use mpaso_derived_types
+   use mpaso_pool_routines
    use ocn_constants
 
    implicit none

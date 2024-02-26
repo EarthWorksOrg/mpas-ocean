@@ -7,13 +7,13 @@
 !
 module ocn_core_interface
 
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_dmpar
-   use mpas_constants
-   use mpas_log
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_dmpar
+   use mpaso_constants
+   use mpaso_log
    use ocn_core
-   use mpas_attlist
+   use mpaso_attlist
 
    use ocn_forward_mode
    use ocn_analysis_mode
@@ -503,8 +503,8 @@ module ocn_core_interface
    !-----------------------------------------------------------------------
    function ocn_setup_decompositions(decompList) result(ierr)!{{{
 
-      use mpas_derived_types
-      use mpas_decomp
+      use mpaso_derived_types
+      use mpaso_decomp
 
       implicit none
 
@@ -547,7 +547,7 @@ module ocn_core_interface
    !-----------------------------------------------------------------------
    function ocn_setup_clock(core_clock, configs) result(ierr)!{{{
 
-      use mpas_derived_types
+      use mpaso_derived_types
 
       implicit none
 
@@ -587,8 +587,8 @@ module ocn_core_interface
    !-----------------------------------------------------------------------
    function ocn_setup_log(logInfo, domain, unitNumbers) result(iErr)!{{{
 
-      use mpas_derived_types
-      use mpas_log
+      use mpaso_derived_types
+      use mpaso_log
 
       implicit none
 
@@ -633,8 +633,8 @@ module ocn_core_interface
    !-----------------------------------------------------------------------
    function ocn_get_mesh_stream(configs, stream) result(ierr)!{{{
 
-      use mpas_derived_types
-      use mpas_pool_routines
+      use mpaso_derived_types
+      use mpaso_pool_routines
 
       implicit none
 
@@ -670,7 +670,7 @@ module ocn_core_interface
    !
    !-----------------------------------------------------------------------
    function ocn_setup_block(block) result(iErr)!{{{
-      use mpas_derived_types
+      use mpaso_derived_types
       type (block_type), pointer :: block
       integer :: iErr
 

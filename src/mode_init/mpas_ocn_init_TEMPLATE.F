@@ -37,11 +37,11 @@
 
 module ocn_init_TEMPLATE
 
-   use mpas_kind_types
-   use mpas_io_units
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_constants
+   use mpaso_kind_types
+   use mpaso_io_units
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_constants
 
    use ocn_constants
    use ocn_config

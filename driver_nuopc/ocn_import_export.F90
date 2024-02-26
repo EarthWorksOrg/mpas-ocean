@@ -3,11 +3,11 @@ module ocn_import_export
   use ESMF
   use NUOPC
   use NUOPC_Model
-  use mpas_kind_types, only : r8 => r8kind
-  use mpas_derived_types
-  use mpas_field_routines
-  use mpas_pool_routines
-  use mpas_dmpar, only : mpas_dmpar_exch_halo_field, mpas_dmpar_sum_real
+  use mpaso_kind_types, only : r8 => r8kind
+  use mpaso_derived_types
+  use mpaso_field_routines
+  use mpaso_pool_routines
+  use mpaso_dmpar, only : mpas_dmpar_exch_halo_field, mpas_dmpar_sum_real
   use ocn_constants, only : RHO_SW, CP_SW, T0_KELVIN
   use ocn_config, only : CONFIG_FRAZIL_HEAT_OF_FUSION
   use ocn_equation_of_state, only : ocn_freezing_temperature

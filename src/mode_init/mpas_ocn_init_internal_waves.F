@@ -20,11 +20,11 @@
 
 module ocn_init_internal_waves
 
-   use mpas_kind_types
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_constants
-   use mpas_dmpar
+   use mpaso_kind_types
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_constants
+   use mpaso_dmpar
 
    use ocn_init_vertical_grids
    use ocn_init_cell_markers

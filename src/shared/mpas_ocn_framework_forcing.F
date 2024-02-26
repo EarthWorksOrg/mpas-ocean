@@ -19,8 +19,8 @@
 
 module ocn_framework_forcing
 
-  use mpas_derived_types
-  use mpas_forcing
+  use mpaso_derived_types
+  use mpaso_forcing
 
   implicit none
   private

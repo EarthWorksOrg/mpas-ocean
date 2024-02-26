@@ -50,7 +50,6 @@ def _copy_files_to_blddir(case):
     # copy source files into obj dir
     srcroot = case.get_value("SRCROOT")
     glob_dirs = [os.path.join(srcroot, "components/mpas-framework", "src", "framework"),
-                 os.path.join(srcroot, "components/mpas-framework", "src", "operators"),
                  os.path.join(srcroot, "components/mpas-framework", "src", "tools", "registry"),
                  os.path.join(srcroot, "components/mpas-framework", "src", "external", "ezxml"),
                  os.path.join(srcroot, "components/mpas-framework", "src", "external", "esmfloc_time_f90"),
@@ -85,6 +84,58 @@ def _copy_files_to_blddir(case):
         filenames = glob.glob(glob_dir + "/*.h")
         for filename in filenames:
             shutil.copy2(filename, dest_dir)
+
+    glob_dirs = [os.path.join(srcroot, "components/mpas-framework", "src", "operators")]
+    for glob_dir in glob_dirs:
+        filenames = glob.glob(glob_dir + "/*.F")
+        for filename in filenames:
+            filename1 = filename.replace(glob_dir, '', 1)
+            ofilename = filename1.replace('/mpas', 'mpaso', 1)
+            cmd = "sed -e '1,$s/MPASAOS/mpaso/' {} > {}/{}".format(filename, dest_dir, ofilename)
+            rc, out, err = run_cmd(cmd)
+            expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
+    glob_dirs = [os.path.join(srcroot, "components/mpas-framework", "src", "framework-sed")]
+    for glob_dir in glob_dirs:
+        filenames = glob.glob(glob_dir + "/*.inc")
+        for filename in filenames:
+            filename1 = filename.replace(glob_dir, '', 1)
+            filename2 = filename1.replace('/', '', 1)
+            cmd = "sed -e '1,$s/MPASAOS/mpaso/' {} > {}/{}".format(filename, dest_dir, filename2)
+            rc, out, err = run_cmd(cmd)
+            expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
+    for glob_dir in glob_dirs:
+        filenames = glob.glob(glob_dir + "/*.F")
+        for filename in filenames:
+            filename1 = filename.replace(glob_dir, '', 1)
+            filename2 = filename1.replace('/', '', 1)
+            cmd = "sed -e '1,$s/MPASAOS/mpaso/' {} > {}/{}".format(filename, dest_dir, filename2)
+            rc, out, err = run_cmd(cmd)
+            expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
+    for glob_dir in glob_dirs:
+        filenames = glob.glob(glob_dir + "/*.inc")
+        for filename in filenames:
+            filename1 = filename.replace(glob_dir, '', 1)
+            ofilename = filename1.replace('/mpas', 'mpaso', 1)
+            cmd = "sed -e '1,$s/MPASAOS/mpaso/' {} > {}/{}".format(filename, dest_dir, ofilename)
+            rc, out, err = run_cmd(cmd)
+            expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
+    for glob_dir in glob_dirs:
+        filenames = glob.glob(glob_dir + "/*.c")
+        for filename in filenames:
+            filename1 = filename.replace(glob_dir, '', 1)
+            ofilename = filename1.replace('/', '', 1)
+            cmd = "sed -e '1,$s/MPASAOS/mpaso/' {} > {}/{}".format(filename, dest_dir, ofilename)
+            rc, out, err = run_cmd(cmd)
+            expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
+    glob_dirs = [os.path.join(srcroot, "components/mpas-framework", "src", "tools", "registry-sed")]
+    for glob_dir in glob_dirs:
+        filenames = glob.glob(glob_dir + "/*.c")
+        for filename in filenames:
+            filename1 = filename.replace(glob_dir, '', 1)
+            ofilename = filename1.replace('/', '', 1)
+            cmd = "sed -e '1,$s/MPASAOS/mpaso/' {} > {}/{}".format(filename, dest_dir, ofilename)
+            rc, out, err = run_cmd(cmd)
+            expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
 
     glob_dirs = [os.path.join(srcroot, "components/mpas-framework", "src", "core_ocean", "gotm", "include")]
     dest_dir = os.path.join(objroot, "ocn", "obj")

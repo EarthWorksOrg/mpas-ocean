@@ -21,9 +21,9 @@
 
 module ocn_vel_pressure_grad
 
-   use mpas_timer
-   use mpas_constants
-   use mpas_log
+   use mpaso_timer
+   use mpaso_constants
+   use mpaso_log
 
    use ocn_constants
    use ocn_config

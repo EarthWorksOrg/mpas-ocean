@@ -20,9 +20,9 @@
 
 module ocn_vel_forcing
 
-   use mpas_kind_types
-   use mpas_derived_types
-   use mpas_log
+   use mpaso_kind_types
+   use mpaso_derived_types
+   use mpaso_log
    use ocn_constants
    use ocn_vel_forcing_surface_stress
    use ocn_vel_forcing_explicit_bottom_drag
