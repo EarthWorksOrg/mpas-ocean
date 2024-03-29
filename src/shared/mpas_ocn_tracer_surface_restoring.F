@@ -19,13 +19,13 @@
 
 module ocn_tracer_surface_restoring
 
-   use mpas_kind_types
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_timer
-   use mpas_timekeeping
-   use mpas_forcing
-   use mpas_stream_manager
+   use mpaso_kind_types
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_timer
+   use mpaso_timekeeping
+   use mpaso_forcing
+   use mpaso_stream_manager
    use ocn_constants
    use ocn_config
    use ocn_framework_forcing

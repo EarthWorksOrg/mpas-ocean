@@ -20,14 +20,14 @@
 
 module ocn_core
 
-   use mpas_kind_types
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_stream_manager
-   use mpas_timekeeping
-   use mpas_dmpar
-   use mpas_timer
-   use mpas_threading
+   use mpaso_kind_types
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_stream_manager
+   use mpaso_timekeeping
+   use mpaso_dmpar
+   use mpaso_timer
+   use mpaso_threading
 
    use ocn_forward_mode
    use ocn_analysis_mode

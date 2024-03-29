@@ -19,12 +19,12 @@
 
 module ocn_frazil_forcing
 
-   use mpas_kind_types
-   use mpas_constants
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_timekeeping
-   use mpas_timer
+   use mpaso_kind_types
+   use mpaso_constants
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_timekeeping
+   use mpaso_timer
    use ocn_constants
    use ocn_config
    use ocn_diagnostics_variables

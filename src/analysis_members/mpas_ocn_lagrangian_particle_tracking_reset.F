@@ -18,11 +18,11 @@
 !-----------------------------------------------------------------------
 module ocn_lagrangian_particle_tracking_reset
 
-  use mpas_derived_types
-  use mpas_constants
-  use mpas_timekeeping
-  use mpas_stream_manager
-  use mpas_pool_routines
+  use mpaso_derived_types
+  use mpaso_constants
+  use mpaso_timekeeping
+  use mpaso_stream_manager
+  use mpaso_pool_routines
 
   use ocn_constants
   use ocn_config

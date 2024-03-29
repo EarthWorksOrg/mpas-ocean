@@ -19,12 +19,12 @@
 
 module ocn_forcing
 
-   use mpas_kind_types
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_timekeeping
-   use mpas_log
-   use mpas_dmpar
+   use mpaso_kind_types
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_timekeeping
+   use mpaso_log
+   use mpaso_dmpar
    use ocn_constants
    use ocn_diagnostics_variables
 

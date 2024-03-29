@@ -13,8 +13,8 @@
 
 module ocn_tracer_short_wave_absorption_jerlov
 
-   use mpas_derived_types
-   use mpas_pool_routines
+   use mpaso_derived_types
+   use mpaso_pool_routines
    use ocn_constants
    use ocn_config
 

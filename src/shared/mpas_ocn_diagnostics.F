@@ -20,14 +20,14 @@
 
 module ocn_diagnostics
 
-   use mpas_timer
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_constants
-   use mpas_threading
-   use mpas_vector_reconstruction
-   use mpas_stream_manager
-   use mpas_io_units
+   use mpaso_timer
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_constants
+   use mpaso_threading
+   use mpaso_vector_reconstruction
+   use mpaso_stream_manager
+   use mpaso_io_units
 
    use ocn_constants
    use ocn_config

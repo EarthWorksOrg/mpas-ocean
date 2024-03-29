@@ -21,7 +21,7 @@
 
 module ocn_vel_vadv
 
-   use mpas_timer
+   use mpaso_timer
    use ocn_constants
    use ocn_config
    use ocn_mesh

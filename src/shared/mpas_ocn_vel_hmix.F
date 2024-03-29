@@ -22,9 +22,9 @@
 
 module ocn_vel_hmix
 
-   use mpas_timer
-   use mpas_derived_types
-   use mpas_log
+   use mpaso_timer
+   use mpaso_derived_types
+   use mpaso_log
    use ocn_vel_hmix_del2
    use ocn_vel_hmix_leith
    use ocn_vel_hmix_del4

@@ -20,16 +20,16 @@
 
 module ocn_time_integration_split
 
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_constants
-   use mpas_dmpar
-   use mpas_vector_reconstruction
-   use mpas_spline_interpolation
-   use mpas_timer
-   use mpas_threading
-   use mpas_timekeeping
-   use mpas_log
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_constants
+   use mpaso_dmpar
+   use mpaso_vector_reconstruction
+   use mpaso_spline_interpolation
+   use mpaso_timer
+   use mpaso_threading
+   use mpaso_timekeeping
+   use mpaso_log
 
    use ocn_config
    use ocn_mesh

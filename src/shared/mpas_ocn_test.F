@@ -20,14 +20,14 @@
 
 module ocn_test
 
-   use mpas_constants
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_field_routines
-   use mpas_timekeeping
-   use mpas_dmpar
-   use mpas_timer
-   use mpas_tensor_operations
+   use mpaso_constants
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_field_routines
+   use mpaso_timekeeping
+   use mpaso_dmpar
+   use mpaso_timer
+   use mpaso_tensor_operations
 
    use ocn_constants
    use ocn_config

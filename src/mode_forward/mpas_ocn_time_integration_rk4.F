@@ -19,14 +19,14 @@
 
 module ocn_time_integration_rk4
 
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_constants
-   use mpas_dmpar
-   use mpas_threading
-   use mpas_vector_reconstruction
-   use mpas_spline_interpolation
-   use mpas_timer
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_constants
+   use mpaso_dmpar
+   use mpaso_threading
+   use mpaso_vector_reconstruction
+   use mpaso_spline_interpolation
+   use mpaso_timer
 
    use ocn_constants
    use ocn_tendency

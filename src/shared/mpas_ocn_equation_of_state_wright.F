@@ -23,12 +23,12 @@
 
 module ocn_equation_of_state_wright
 
-   use mpas_kind_types
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_dmpar
-   use mpas_log
-   use mpas_constants
+   use mpaso_kind_types
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_dmpar
+   use mpaso_log
+   use mpaso_constants
    use ocn_constants
    use ocn_config
 

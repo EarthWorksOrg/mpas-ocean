@@ -20,8 +20,8 @@
 
 module ocn_vel_hmix_leith
 
-   use mpas_timer
-   use mpas_constants
+   use mpaso_timer
+   use mpaso_constants
    use ocn_constants
    use ocn_config
    use ocn_mesh

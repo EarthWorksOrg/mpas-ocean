@@ -18,11 +18,11 @@
 !-----------------------------------------------------------------------
 module ocn_init_smoothing
 
-   use mpas_kind_types
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_dmpar
-   use mpas_field_routines
+   use mpaso_kind_types
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_dmpar
+   use mpaso_field_routines
 
    implicit none
    private

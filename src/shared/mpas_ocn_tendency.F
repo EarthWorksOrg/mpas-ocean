@@ -20,11 +20,11 @@
 
 module ocn_tendency
 
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_constants
-   use mpas_timer
-   use mpas_threading
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_constants
+   use mpaso_timer
+   use mpaso_threading
    use ocn_diagnostics
    use ocn_diagnostics_variables
    use ocn_constants

@@ -20,14 +20,14 @@
 
 module ocn_eliassen_palm
 
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_dmpar
-   use mpas_timekeeping
-   use mpas_stream_manager
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_dmpar
+   use mpaso_timekeeping
+   use mpaso_stream_manager
 
-   use mpas_pool_routines
-   use mpas_constants
+   use mpaso_pool_routines
+   use mpaso_constants
    use ocn_constants
    use ocn_config
    use ocn_equation_of_state
@@ -213,7 +213,7 @@ contains
 
    subroutine ocn_compute_eliassen_palm(domain, timeLevel, err)!{{{
 
-      use mpas_vector_reconstruction
+      use mpaso_vector_reconstruction
 
       !-----------------------------------------------------------------
       !
@@ -2026,7 +2026,7 @@ contains
    subroutine calculateDivEPFT(debugFlag, onASphere, rho0, nLayers, nCells, nEdges, &
         meshPool, buoyancyMidRef, sigmaEA, buoyancyMaskEA, tensorCellIn, vectorCellOut)!{{{
 
-      use mpas_vector_operations
+      use mpaso_vector_operations
 
       logical, intent(in) :: debugFlag
       logical, intent(in) :: onASphere
@@ -2271,7 +2271,7 @@ contains
    subroutine calculateErtelPVTendencyFromPVFlux(debugFlag, onASphere, nLayers, nCells, nEdges, &
          meshPool, sigma, vectorCell, divVectorCell)!{{{
 
-      use mpas_vector_operations
+      use mpaso_vector_operations
 
       logical, intent(in) :: debugFlag
       logical, intent(in) :: onASphere
@@ -2411,7 +2411,7 @@ contains
    subroutine computeErtelPV(nCells, nLayers, nEdges, meshPool, &
       fCell, uCell, vCell, sigma, ErtelPV)
 
-      use mpas_vector_reconstruction
+      use mpaso_vector_reconstruction
 
       integer, intent(in) :: nCells, nLayers, nEdges
       type (mpas_pool_type), intent(in) :: meshPool
