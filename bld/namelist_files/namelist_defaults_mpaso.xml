@@ -38,11 +38,11 @@
 <config_dt ocn_grid="oQU240">'01:00:00'</config_dt>
 <config_dt ocn_grid="oQU240wLI">'02:00:00'</config_dt>
 <config_dt ocn_grid="oQU120">'00:30:00'</config_dt>
-<config_dt ocn_grid="oQU060">'00:30:00'</config_dt>
-<config_dt ocn_grid="oQU030">'00:15:00'</config_dt>
-<config_dt ocn_grid="oQU015">'00:07:30'</config_dt>
-<config_dt ocn_grid="oQU0075">'00:07:30'</config_dt>
-<config_dt ocn_grid="oQU00375">'00:07:30'</config_dt>
+<config_dt ocn_grid="oQU060">'00:15:00'</config_dt>
+<config_dt ocn_grid="oQU030">'00:07:30'</config_dt>
+<config_dt ocn_grid="oQU015">'00:04:00'</config_dt>
+<config_dt ocn_grid="oQU0075">'00:02:00'</config_dt>
+<config_dt ocn_grid="oQU00375">'00:01:00'</config_dt>
 <config_dt ocn_grid="oEC60to30v3">'00:30:00'</config_dt>
 <config_dt ocn_grid="oEC60to30v3wLI">'00:30:00'</config_dt>
 <config_dt ocn_grid="ECwISC30to60E1r2">'00:30:00'</config_dt>
