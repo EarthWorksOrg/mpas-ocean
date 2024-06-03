@@ -21,16 +21,16 @@
 
 module ocn_init_routines
 
-   use mpas_kind_types
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_timer
-   use mpas_dmpar
-   use mpas_constants
+   use mpaso_kind_types
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_timer
+   use mpaso_dmpar
+   use mpaso_constants
 
-   use mpas_rbf_interpolation
-   use mpas_vector_operations
-   use mpas_vector_reconstruction
+   use mpaso_rbf_interpolation
+   use mpaso_vector_operations
+   use mpaso_vector_reconstruction
 
    use ocn_diagnostics
    use ocn_diagnostics_variables

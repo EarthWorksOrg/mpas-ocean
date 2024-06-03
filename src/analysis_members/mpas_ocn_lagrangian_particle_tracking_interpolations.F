@@ -19,12 +19,12 @@
 !-----------------------------------------------------------------------
 module ocn_lagrangian_particle_tracking_interpolations
 
-  use mpas_derived_types
-  use mpas_constants
-  use mpas_rbf_interpolation
-  use mpas_geometry_utils
-  use mpas_vector_reconstruction
-  use mpas_dmpar
+  use mpaso_derived_types
+  use mpaso_constants
+  use mpaso_rbf_interpolation
+  use mpaso_geometry_utils
+  use mpaso_vector_reconstruction
+  use mpaso_dmpar
 
   implicit none
 

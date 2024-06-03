@@ -13,19 +13,19 @@
 
 module ocn_vmix_gotm
 
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_timer
-   use mpas_constants
-   use mpas_log
-   use mpas_timekeeping
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_timer
+   use mpaso_constants
+   use mpaso_log
+   use mpaso_timekeeping
 
    use ocn_constants
    use ocn_config
    use ocn_mesh
    use ocn_diagnostics_variables
 
-   use mpas_io_units
+   use mpaso_io_units
 
    use turbulence, only: init_turbulence, do_turbulence, clean_turbulence
    use turbulence, only: gotm_vertVisc=>num, gotm_vertDiffT=>nuh, &

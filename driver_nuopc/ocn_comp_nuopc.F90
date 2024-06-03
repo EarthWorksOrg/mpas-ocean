@@ -25,11 +25,11 @@ module ocn_comp_nuopc
   use shr_kind_mod          , only : cl=>shr_kind_cl, cs=>shr_kind_cs, SHR_KIND_CX
   use shr_file_mod 
   use shr_sys_mod 
-  use mpas_framework
-  use mpas_derived_types
-  use mpas_pool_routines
-  use mpas_stream_manager
-  use mpas_abort
+  use mpaso_framework
+  use mpaso_derived_types
+  use mpaso_pool_routines
+  use mpaso_stream_manager
+  use mpaso_abort
   use ocn_core_interface
   use shr_pio_mod
   use pio
@@ -249,12 +249,12 @@ contains
     !  domain decomposition, grid, and overflows
     !-----------------------------------------------------------------------
     use ESMF               , only: ESMF_VMGet
-      use mpas_stream_manager, only : MPAS_stream_mgr_init, MPAS_build_stream_filename, MPAS_stream_mgr_validate_streams
+      use mpaso_stream_manager, only : MPAS_stream_mgr_init, MPAS_build_stream_filename, MPAS_stream_mgr_validate_streams
       use iso_c_binding, only : c_char, c_loc, c_ptr, c_int
-      use mpas_c_interfacing, only : mpas_f_to_c_string, mpas_c_to_f_string
-      use mpas_timekeeping, only : mpas_get_clock_time, mpas_get_time
-      use mpas_bootstrapping, only : mpas_bootstrap_framework_phase1, mpas_bootstrap_framework_phase2
-      use mpas_log
+      use mpaso_c_interfacing, only : mpas_f_to_c_string, mpas_c_to_f_string
+      use mpaso_timekeeping, only : mpas_get_clock_time, mpas_get_time
+      use mpaso_bootstrapping, only : mpas_bootstrap_framework_phase1, mpas_bootstrap_framework_phase2
+      use mpaso_log
 
 
     ! Initialize MPASO
@@ -1869,7 +1869,7 @@ contains
 
    subroutine add_stream_attributes(domain)
 
-      use mpas_stream_manager, only : MPAS_stream_mgr_add_att
+      use mpaso_stream_manager, only : MPAS_stream_mgr_add_att
 
       implicit none
 

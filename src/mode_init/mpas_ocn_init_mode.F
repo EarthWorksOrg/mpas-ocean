@@ -20,16 +20,16 @@
 
 module ocn_init_mode
 
-   use mpas_kind_types
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_stream_manager
-   use mpas_timekeeping
-   use mpas_dmpar
-   use mpas_timer
-   use mpas_io_units
-   use mpas_constants
-   use mpas_decomp
+   use mpaso_kind_types
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_stream_manager
+   use mpaso_timekeeping
+   use mpaso_dmpar
+   use mpaso_timer
+   use mpaso_io_units
+   use mpaso_constants
+   use mpaso_decomp
 
    use ocn_init_routines
 

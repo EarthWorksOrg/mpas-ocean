@@ -22,9 +22,9 @@ module ocn_tracer_advection_mono
 
    ! module includes
 #ifdef _ADV_TIMERS
-   use mpas_timer
+   use mpaso_timer
 #endif
-   use mpas_kind_types
+   use mpaso_kind_types
 
    use ocn_config
    use ocn_mesh

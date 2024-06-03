@@ -21,12 +21,12 @@
 
 module ocn_init_ecosys_column
 
-   use mpas_kind_types
-   use mpas_io_units
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_constants
-   use mpas_io_streams
+   use mpaso_kind_types
+   use mpaso_io_units
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_constants
+   use mpaso_io_streams
 
    use ocn_init_cell_markers
    use ocn_config

@@ -20,7 +20,7 @@
 
 module ocn_vel_forcing_surface_stress
 
-   use mpas_timer
+   use mpaso_timer
 
    use ocn_constants
    use ocn_config

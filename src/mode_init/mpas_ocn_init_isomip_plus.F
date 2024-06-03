@@ -20,14 +20,14 @@
 
 module ocn_init_isomip_plus
 
-   use mpas_kind_types
-   use mpas_io_units
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_constants
-   use mpas_io
-   use mpas_io_streams
-   use mpas_dmpar
+   use mpaso_kind_types
+   use mpaso_io_units
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_constants
+   use mpaso_io
+   use mpaso_io_streams
+   use mpaso_dmpar
 
    use ocn_constants
    use ocn_config

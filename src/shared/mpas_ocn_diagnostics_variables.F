@@ -20,11 +20,11 @@
 
 module ocn_diagnostics_variables
 
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_constants
-   use mpas_stream_manager
-   use mpas_io_units
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_constants
+   use mpaso_stream_manager
+   use mpaso_io_units
 
    use ocn_config
 

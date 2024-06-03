@@ -19,12 +19,12 @@
 !-----------------------------------------------------------------------
 module ocn_init_vertical_grids
 
-   use mpas_kind_types
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_constants
-   use mpas_timer
-   use mpas_io
+   use mpaso_kind_types
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_constants
+   use mpaso_timer
+   use mpaso_io
 
    use ocn_constants
    use ocn_config

@@ -19,9 +19,9 @@
 
 module ocn_constants
 
-   use mpas_derived_types
-   use mpas_pool_routines
-   use mpas_kind_types
+   use mpaso_derived_types
+   use mpaso_pool_routines
+   use mpaso_kind_types
 
 #ifdef MPAS_ESM_SHR_CONST
    use shr_kind_mod, only: SHR_KIND_R8

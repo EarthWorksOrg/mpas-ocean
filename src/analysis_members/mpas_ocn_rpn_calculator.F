@@ -16,11 +16,11 @@
 !>  Flexible vector RPN calculator of MPAS fields for up to 2D fields.
 !-----------------------------------------------------------------------
 module ocn_rpn_calculator
-  use mpas_derived_types
-  use mpas_pool_routines
-  use mpas_dmpar
-  use mpas_timekeeping
-  use mpas_stream_manager
+  use mpaso_derived_types
+  use mpaso_pool_routines
+  use mpaso_dmpar
+  use mpaso_timekeeping
+  use mpaso_stream_manager
 
   use ocn_constants
 

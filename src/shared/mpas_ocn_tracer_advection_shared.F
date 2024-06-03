@@ -20,12 +20,12 @@
 
 module ocn_tracer_advection_shared
 
-   use mpas_kind_types
-   use mpas_derived_types
-   use mpas_hash
-   use mpas_sort
-   use mpas_geometry_utils
-   use mpas_log
+   use mpaso_kind_types
+   use mpaso_derived_types
+   use mpaso_hash
+   use mpaso_sort
+   use mpaso_geometry_utils
+   use mpaso_log
 
    use ocn_config
    use ocn_mesh

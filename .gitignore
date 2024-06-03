@@ -1,0 +1,21 @@
+.mpas_core_ocean
+default_inputs/
+namelist.ocean
+streams.ocean
+ocean_model
+src/Registry_processed.xml
+src/default_inputs/
+src/inc/
+
+# Ignore compiled python
+buildnmlc
+buildcppc
+
+# Ignore editor temporaries and backups
+*~
+.#*
+\#*#
+*.swp
+
+# Ignore python bytecode files
+*.pyc

@@ -20,8 +20,8 @@
 
 module ocn_vel_hmix_del4
 
-   use mpas_timer
-   use mpas_log
+   use mpaso_timer
+   use mpaso_log
    use ocn_constants
    use ocn_config
    use ocn_mesh
