@@ -61,7 +61,7 @@ def _copy_files_to_blddir(case):
                  os.path.join(srcroot, "components/mpas-framework", "src", "core_ocean", "cvmix", "src", "shared"),
                  os.path.join(srcroot, "components/mpas-framework", "src", "core_ocean", "gotm", "src", "util"),
                  os.path.join(srcroot, "components/mpas-framework", "src", "core_ocean", "gotm", "src", "turbulence"),
-                 os.path.join(srcroot, "components/mpas-framework", "src", "core_ocean", "PPR"),
+                 os.path.join(srcroot, "components/mpas-framework", "src", "core_ocean", "ppr"),
                  os.path.join(srcroot, "components/mpas-framework", "src", "core_ocean", "MARBL", "src"),
                  os.path.join(srcroot, "components/mpas-framework", "src", "core_ocean"),
                  os.path.join(srcroot, "components/mpas-framework", "src", "core_ocean", "driver")]
