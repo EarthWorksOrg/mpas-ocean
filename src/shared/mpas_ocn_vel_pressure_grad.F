@@ -3,7 +3,7 @@
 !
 ! Unless noted otherwise source code is licensed under the BSD license.
 ! Additional copyright and license information can be found in the LICENSE file
-! distributed with this code, or at http://mpas-dev.github.com/license.html
+! distributed with this code, or at http://mpas-dev.github.io/license.html
 !
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -93,7 +93,8 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_vel_pressure_grad_tend(ssh, pressure, surfacePressure, &
+   subroutine ocn_vel_pressure_grad_tend(ssh, nonhydrostaticPressure, &
+                                  pressure, surfacePressure, &
                                   montgomeryPotential, zMid, &
                                   density, potentialDensity, &
                                   indxT, indxS, tracers, &
@@ -120,6 +121,9 @@ contains
          zMid,                &!< [in] z-coordinate at layer mid-depth
          density,             &!< [in] density
          potentialDensity      !< [in] potentialDensity
+
+      real (kind=RKIND), dimension(:,:), intent(in), optional :: &
+         nonhydrostaticPressure     !< Input: nonhydrostatic pressure correction
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          thermExpCoeff,       &!< [in] in situ thermal expansion coeff
@@ -425,8 +429,8 @@ contains
          !$omp end parallel
 #endif
 
-         !$acc exit data delete(JacobianDxDs)
-         deallocate(JacobianDxDs)
+        deallocate(JacobianDxDs)
+        !$acc exit data delete(JacobianDxDs)
 
      case (pGradTypeJacobTS)
 
@@ -585,6 +589,23 @@ contains
          !*** error already trapped during init
 
       end select ! pGradType
+
+      if(config_enable_nonhydrostatic_mode) then
+         !$omp parallel
+         !$omp do schedule(runtime) private(cell1, cell2, invdcEdge, k)
+         do iEdge=1,nEdgesOwned
+            cell1 = cellsOnEdge(1,iEdge)
+            cell2 = cellsOnEdge(2,iEdge)
+            invdcEdge = 1.0_RKIND / dcEdge(iEdge)
+            
+            do k=1,maxLevelEdgeTop(iEdge)
+               tend(k,iEdge) = tend(k,iEdge) + edgeMask(k,iEdge) * invdcEdge * ( &
+                 - ( nonhydrostaticPressure(k,cell2) - nonhydrostaticPressure(k,cell1) ) )
+            end do 
+         end do
+         !$omp end do
+         !$omp end parallel
+      endif
 
       call mpas_timer_stop("pressure grad")
 
