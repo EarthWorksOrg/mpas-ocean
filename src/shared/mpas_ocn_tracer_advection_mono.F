@@ -3,7 +3,7 @@
 !
 ! Unless noted otherwise source code is licensed under the BSD license.
 ! Additional copyright and license information can be found in the LICENSE file
-! distributed with this code, or at http://mpas-dev.github.com/license.html
+! distributed with this code, or at http://mpas-dev.github.io/license.html
 !
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -101,7 +101,7 @@ module ocn_tracer_advection_mono
          i, iCell, iEdge, &! horz indices
          cell1, cell2,    &! neighbor cell indices
          nCells, nEdges,  &! numbers of cells or edges
-         k,k2,kmin, kmax, &! vert index variants
+         k,kmin, kmax, &! vert index variants
          kmin1, kmax1,    &! vert index variants
          iTracer,         &! tracer index
          numTracers        ! total number of tracers
@@ -115,7 +115,6 @@ module ocn_tracer_advection_mono
          flux,              &! flux temporary
          tracerWeight,      &! tracer weighting temporary
          invAreaCell1,      &! inverse cell area
-         invAreaCell2,      &! inverse cell area
          coef1, coef3        ! temporary coefficients
 
       real (kind=RKIND), dimension(:), allocatable :: &
@@ -331,6 +330,7 @@ module ocn_tracer_advection_mono
            do k = 1, nVertLevels
               wgtTmp(k) = normalThicknessFlux(k,iEdge)* &
                           advMaskHighOrder(k,iEdge)
+              !print*, 'normalThicknessFlux(k,iEdge) ', normalThicknessFlux(k,iEdge)
               sgnTmp(k) = sign(1.0_RKIND, &
                                normalThicknessFlux(k,iEdge))
               flxTmp(k) = 0.0_RKIND

@@ -48,6 +48,8 @@ module ocn_comp_nuopc
   use ocn_surface_land_ice_fluxes
   use ocn_forcing
   use ocn_time_average_coupled
+   use ocn_submesoscale_eddies
+   use ocn_eddy_parameterization_helpers
   
   ! !PUBLIC MEMBER FUNCTIONS:
   implicit none
@@ -345,6 +347,11 @@ contains
       character(kind=c_char), dimension(StrKIND+1) :: c_filename       ! StrKIND+1 for C null-termination character
       integer(kind=c_int) :: c_comm
       integer(kind=c_int) :: c_ierr
+
+      logical, pointer :: config_use_ecosysTracers
+      logical, pointer :: config_use_CFCTracers
+      logical, pointer :: config_use_activeTracers_surface_restoring
+      logical, pointer :: config_use_surface_salinity_monthly_restoring
 
       type (MPAS_Time_type) :: start_time
       type (MPAS_Time_type) :: ref_time
@@ -1413,6 +1420,17 @@ contains
             call mpas_timer_stop("land_ice_build_arrays")
 
             call ocn_frazil_forcing_build_arrays(domain_ptr, meshPool, forcingPool, statePool, ierr)
+
+            call ocn_eddy_compute_mixed_layer_depth(statePool, forcingPool)
+            if (config_use_GM .or. config_submesoscale_enable) then
+                call ocn_eddy_compute_buoyancy_gradient()
+            end if
+
+            if (config_submesoscale_enable) then
+                call mpas_timer_start("submesoscale eddy velocity compute", .false.)
+                call ocn_submesoscale_compute_velocity()
+                call mpas_timer_stop("submesoscale eddy velocity compute")
+            end if
 
             ! Compute normalGMBolusVelocity, relativeSlope and RediDiffVertCoef if respective flags are turned on
             if (config_use_Redi.or.config_use_GM) then

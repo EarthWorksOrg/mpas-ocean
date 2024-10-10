@@ -3,7 +3,7 @@
 !
 ! Unless noted otherwise source code is licensed under the BSD license.
 ! Additional copyright and license information can be found in the LICENSE file
-! distributed with this code, or at http://mpas-dev.github.com/license.html
+! distributed with this code, or at http://mpas-dev.github.io/license.html
 !
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -21,12 +21,7 @@
 module ocn_equation_of_state_linear
 
    use mpaso_kind_types
-   use mpaso_derived_types
-   use mpaso_pool_routines
-   use ocn_constants
    use ocn_config
-   use mpaso_dmpar
-   use mpaso_log
 
    implicit none
    private

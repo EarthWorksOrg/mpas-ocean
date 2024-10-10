@@ -3,7 +3,7 @@
 !
 ! Unless noted otherwise source code is licensed under the BSD license.
 ! Additional copyright and license information can be found in the LICENSE file
-! distributed with this code, or at http://mpas-dev.github.com/license.html
+! distributed with this code, or at http://mpas-dev.github.io/license.html
 !
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -24,6 +24,7 @@ module ocn_vel_hmix_del2
    use ocn_constants
    use ocn_config
    use ocn_mesh
+   use ocn_diagnostics_variables
 
    implicit none
    private

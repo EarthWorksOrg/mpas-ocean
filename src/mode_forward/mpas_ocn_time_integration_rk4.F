@@ -3,7 +3,7 @@
 !
 ! Unless noted otherwise source code is licensed under the BSD license.
 ! Additional copyright and license information can be found in the LICENSE file
-! distributed with this code, or at http://mpas-dev.github.com/license.html
+! distributed with this code, or at http://mpas-dev.github.io/license.html
 !
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
@@ -33,13 +33,16 @@ module ocn_time_integration_rk4
    use ocn_diagnostics
    use ocn_diagnostics_variables
    use ocn_gm
+   use ocn_submesoscale_eddies
 
+   use ocn_compute_nonhydrostatic_pressure
    use ocn_equation_of_state
    use ocn_vmix
    use ocn_time_average_coupled
    use ocn_wetting_drying
 
    use ocn_effective_density_in_land_ice
+   use ocn_surface_land_ice_fluxes
    use ocn_transport_tests
 
    implicit none
@@ -106,6 +109,8 @@ module ocn_time_integration_rk4
       type (mpas_pool_type), pointer :: scratchPool
       type (mpas_pool_type), pointer :: swForcingPool
 
+      type (dm_info) :: dminfo
+
       integer :: rk_step
 
       type (mpas_pool_type), pointer :: nextProvisPool, prevProvisPool
@@ -134,11 +139,8 @@ module ocn_time_integration_rk4
       logical, pointer :: config_verify_not_dry
       logical, pointer :: config_prevent_drying
       logical, pointer :: config_zero_drying_velocity
+      logical, pointer :: config_enable_nonhydrostatic_mode
       character (len=StrKIND), pointer :: config_land_ice_flux_mode
-
-      ! State indices
-      integer, pointer :: indexTemperature
-      integer, pointer :: indexSalinity
 
       ! Diagnostics Indices
 
@@ -150,18 +152,22 @@ module ocn_time_integration_rk4
       real (kind=RKIND), dimension(:,:), pointer :: normalVelocityProvis, layerThicknessProvis
       real (kind=RKIND), dimension(:,:), pointer :: highFreqThicknessProvis
       real (kind=RKIND), dimension(:,:), pointer :: lowFreqDivergenceProvis
+      real (kind=RKIND), dimension(:,:), pointer :: vertVelocityNonhydroProvis
       real (kind=RKIND), dimension(:,:,:), pointer :: tracersGroupProvis
 
       ! Tend Array Pointers
       real (kind=RKIND), dimension(:,:), pointer :: highFreqThicknessTend, lowFreqDivergenceTend, normalVelocityTend, &
-                                                    layerThicknessTend
+                                                    layerThicknessTend, vertVelocityNonhydroTend
       real (kind=RKIND), dimension(:,:,:), pointer :: tracersGroupTend
 
       ! State Array Pointers
       real (kind=RKIND), dimension(:,:), pointer :: normalVelocityCur, normalVelocityNew
+      real (kind=RKIND), dimension(:,:), pointer :: vertVelocityNonhydroCur, vertVelocityNonhydroNew
       real (kind=RKIND), dimension(:,:), pointer :: layerThicknessCur, layerThicknessNew
       real (kind=RKIND), dimension(:,:), pointer :: highFreqThicknessCur, highFreqThicknessNew
       real (kind=RKIND), dimension(:,:), pointer :: lowFreqDivergenceCur, lowFreqDivergenceNew
+      real (kind=RKIND), dimension(:,:), pointer :: nonhydrostaticPressureCur, nonhydrostaticPressureNew
+
       real (kind=RKIND), dimension(:), pointer :: sshCur, sshNew
 
       real (kind=RKIND), dimension(:,:,:), pointer :: tracerGroup, tracersCur, tracersNew
@@ -186,6 +192,14 @@ module ocn_time_integration_rk4
       real (kind=RKIND), dimension(:,:), pointer :: restingThickness
       real (kind=RKIND) :: totalDepth
 
+      real (kind=RKIND), dimension(:), pointer :: &
+        seaIcePressure, atmosphericPressure
+
+      real (kind=RKIND), dimension(:), pointer :: &
+        frazilSurfacePressure, landIcePressure, landIceDraft
+
+      real (kind=RKIND), dimension(:,:,:), pointer :: activeTracersNew
+
       ! Get config options
       call mpas_pool_get_config(domain % configs, 'config_mom_del4', config_mom_del4)
       call mpas_pool_get_config(domain % configs, 'config_filter_btr_mode', config_filter_btr_mode)
@@ -205,6 +219,7 @@ module ocn_time_integration_rk4
       call mpas_pool_get_config(domain % configs, 'config_zero_drying_velocity', config_zero_drying_velocity)
       call mpas_pool_get_config(domain % configs, 'config_use_tidal_forcing', config_use_tidal_forcing)
       call mpas_pool_get_config(domain % configs, 'config_tidal_forcing_type', config_tidal_forcing_type)
+      call mpas_pool_get_config(domain % configs, 'config_enable_nonhydrostatic_mode', config_enable_nonhydrostatic_mode)
 
       !
       ! Initialize time_levs(2) with state at current time
@@ -231,6 +246,11 @@ module ocn_time_integration_rk4
          call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocityNew, 2)
          call mpas_pool_get_array(statePool, 'layerThickness', layerThicknessCur, 1)
          call mpas_pool_get_array(statePool, 'layerThickness', layerThicknessNew, 2)
+
+         if(config_enable_nonhydrostatic_mode) then
+            call mpas_pool_get_array(statePool, 'vertVelocityNonhydro', vertVelocityNonhydroCur, 1)
+            call mpas_pool_get_array(statePool, 'vertVelocityNonhydro', vertVelocityNonhydroNew, 2)
+         end if
 
          call mpas_pool_get_array(statePool, 'highFreqThickness', highFreqThicknessCur, 1)
          call mpas_pool_get_array(statePool, 'highFreqThickness', highFreqThicknessNew, 2)
@@ -260,6 +280,18 @@ module ocn_time_integration_rk4
          end do
          !$omp end do
          !$omp end parallel
+
+         if(config_enable_nonhydrostatic_mode) then
+           !$omp parallel
+           !$omp do schedule(runtime) private(k)
+           do iCell = 1, nCells
+              do k = 1, maxLevelCell(iCell)
+                 vertVelocityNonhydroNew(k,iCell) = vertVelocityNonhydroCur(k, iCell)
+              end do
+           end do
+           !$omp end do
+           !$omp end parallel
+         end if
 
          call mpas_pool_begin_iteration(tracersPool)
          do while ( mpas_pool_get_next_member(tracersPool, groupItr) )
@@ -491,7 +523,7 @@ module ocn_time_integration_rk4
 
         block => domain % blocklist
         do while (associated(block))
-           call ocn_time_integrator_rk4_compute_vel_tends( block, dt, rk_substep_weights(rk_step), err )
+           call ocn_time_integrator_rk4_compute_vel_tends(domain, block, dt, rk_substep_weights(rk_step), domain % dminfo, err )
 
            call ocn_time_integrator_rk4_compute_thick_tends( block, dt, rk_substep_weights(rk_step), err )
            block => block % next
@@ -499,12 +531,22 @@ module ocn_time_integration_rk4
 
         call mpas_timer_stop("RK4 vel/thick tendency computations")
 
-        ! Update halos for prognostic variables.
+        if (config_enable_nonhydrostatic_mode) then
+           call mpas_timer_start("RK4 vvel tendency computations")
+           block => domain % blocklist
+           do while (associated(block))
+              call ocn_time_integrator_rk4_compute_vvel_tends( block, dt, rk_substep_weights(rk_step), err )
+              block => block % next
+           end do
+           call mpas_timer_stop("RK4 vvel tendency computations")
+        end if
 
+        ! Update halos for prognostic variables.
         call mpas_timer_start("RK4 vel/thick prognostic halo update")
 
         call mpas_dmpar_field_halo_exch(domain, 'tendNormalVelocity')
         call mpas_dmpar_field_halo_exch(domain, 'tendLayerThickness')
+        call mpas_dmpar_field_halo_exch(domain, 'tendVertVelocityNonhydro')
 
         call mpas_timer_stop("RK4 vel/thick prognostic halo update")
 
@@ -594,7 +636,8 @@ module ocn_time_integration_rk4
       ! Rescale tracers
       block => domain % blocklist
       do while(associated(block))
-        call ocn_time_integrator_rk4_cleanup(block, dt, err)
+        dminfo = domain % dminfo
+        call ocn_time_integrator_rk4_cleanup(block, dt, dminfo, err)
 
         block => block % next
       end do
@@ -610,6 +653,7 @@ module ocn_time_integration_rk4
       call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
 
       call mpas_dmpar_field_halo_exch(domain, 'normalVelocity', timeLevel=2)
+      call mpas_dmpar_field_halo_exch(domain, 'vertVelocityNonhydro', timeLevel=2)
 
       call mpas_pool_begin_iteration(tracersPool)
       do while ( mpas_pool_get_next_member(tracersPool, groupItr) )
@@ -633,6 +677,7 @@ module ocn_time_integration_rk4
 
          call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
          call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
+         call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
          call mpas_pool_get_array(meshPool, 'bottomDepth', bottomDepth)
          call mpas_pool_get_array(meshPool, 'minLevelCell', minLevelCell)
          call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
@@ -646,6 +691,23 @@ module ocn_time_integration_rk4
          call mpas_pool_get_array(forcingPool, 'tidalInputMask', tidalInputMask)
          call mpas_pool_get_array(forcingPool, 'tidalBCValue', tidalBCValue)
 
+         call mpas_pool_get_array(tracersPool, 'activeTracers',activeTracersNew, 2)
+
+         if (config_enable_nonhydrostatic_mode) then
+
+            call mpas_pool_get_array(statePool, 'nonhydrostaticPressure', nonhydrostaticPressureNew, 2)
+            call mpas_pool_get_array(statePool, 'nonhydrostaticPressure', nonhydrostaticPressureCur, 1)
+
+            call mpas_timer_start('RK4 NH pressure tend halo pressure')
+            call mpas_dmpar_field_halo_exch(domain, 'nonhydrostaticPressure', timeLevel=2)
+            call mpas_dmpar_field_halo_exch(domain, 'nonhydrostaticPressure', timeLevel=1)
+            call mpas_dmpar_field_halo_exch(domain, 'nhPressureCorrection')
+            call mpas_timer_stop('RK4 NH pressure tend halo pressure')
+
+            call ocn_nonhydrostatic_pressure_update_velocity(normalVelocityNew, vertVelocityNonhydroNew, &
+                 layerThicknessNew, layerThickEdgeMean, nonhydrostaticPressureNew, nonhydrostaticPressureCur, &
+                 nhPressureCorrection, dt)
+         end if
 
          if (config_prescribe_velocity) then
             !$omp parallel
@@ -655,6 +717,16 @@ module ocn_time_integration_rk4
             end do
             !$omp end do
             !$omp end parallel
+
+            if (config_enable_nonhydrostatic_mode) then
+               !$omp parallel
+               !$omp do schedule(runtime)
+               do iCell = 1, nCells
+                  vertVelocityNonhydroNew(:, iCell) = vertVelocityNonhydroCur(:, iCell)
+               end do
+               !$omp end do
+               !$omp end parallel
+            end if
          end if
 
          if (config_prescribe_thickness) then
@@ -687,10 +759,86 @@ module ocn_time_integration_rk4
            end do
          end if
 
+         call mpas_pool_get_array(forcingPool, 'seaIcePressure', seaIcePressure)
+         call mpas_pool_get_array(forcingPool, 'atmosphericPressure', atmosphericPressure)
+         call mpas_pool_get_array(forcingPool, 'frazilSurfacePressure', frazilSurfacePressure)
+
+         if (landIcePressureOn) then
+            call mpas_pool_get_array(forcingPool, 'landIcePressure', landIcePressure)
+            call mpas_pool_get_array(forcingPool, 'landIceDraft', landIceDraft)
+         endif
+
+#ifdef MPAS_OPENACC
+         !$acc enter data copyin(layerThicknessNew, normalVelocityNew)
+         !$acc update device (normalTransportVelocity)
+         if (config_use_gm) then
+            !$acc update device (normalGMBolusVelocity)
+         end if
+         if (config_submesoscale_enable) then
+            !$acc update device (normalMLEvelocity)
+         end if
+         !$acc enter data copyin(atmosphericPressure, seaIcePressure)
+         !$acc enter data copyin(sshNew)
+         !$acc enter data copyin(activeTracersNew)
+         !$acc update device(tracersSurfaceValue)
+         if ( associated(frazilSurfacePressure) ) then
+            !$acc enter data copyin(frazilSurfacePressure)
+         endif
+         if (landIcePressureOn) then
+            !$acc enter data copyin(landIcePressure)
+            !$acc enter data copyin(landIceDraft)
+         endif
+#endif
          call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, scratchPool, tracersPool, 2)
 
          ! Update the effective desnity in land ice if we're coupling to land ice
-         call ocn_effective_density_in_land_ice_update(meshPool, forcingPool, statePool, err)
+         call ocn_effective_density_in_land_ice_update(forcingPool, &
+                                                       statePool, err)
+
+#ifdef MPAS_OPENACC
+         !$acc update host(layerThickEdgeFlux, layerThickEdgeMean)
+         !$acc update host(relativeVorticity, circulation)
+         if (config_use_gm) then
+            !$acc update host(vertGMBolusVelocityTop)
+         end if
+         if (config_submesoscale_enable) then
+            !$acc update host(vertMLEBolusVelocityTop)
+         end if
+         !$acc update host(vertTransportVelocityTop, &
+         !$acc             relativeVorticityCell, &
+         !$acc             divergence, &
+         !$acc             kineticEnergyCell, &
+         !$acc             tangentialVelocity, &
+         !$acc             vertVelocityTop)
+         !$acc update host(normRelVortEdge, normPlanetVortEdge, &
+         !$acc             normalizedRelativeVorticityCell)
+         !$acc update host (surfacePressure)
+         !$acc update host(zMid, zTop)
+         !$acc exit data copyout(sshNew)
+         !$acc exit data delete(activeTracersNew)
+         !$acc update host(tracersSurfaceValue)
+         !$acc update host(normalVelocitySurfaceLayer)
+         !$acc exit data delete (atmosphericPressure, seaIcePressure)
+         if ( associated(frazilSurfacePressure) ) then
+            !$acc exit data delete(frazilSurfacePressure)
+         endif
+         if (landIcePressureOn) then
+            !$acc exit data delete(landIcePressure)
+            !$acc exit data delete(landIceDraft)
+         endif
+         !$acc exit data delete(layerThicknessNew, normalVelocityNew)
+         !$acc update host(density, potentialDensity, displacedDensity)
+         !$acc update host(thermExpCoeff,  &
+         !$acc&            salineContractCoeff)
+         !$acc update host(montgomeryPotential, pressure)
+         !$acc update host(RiTopOfCell, &
+         !$acc             BruntVaisalaFreqTop)
+         !$acc update host(tracersSurfaceLayerValue, &
+         !$acc             indexSurfaceLayerDepth, &
+         !$acc             normalVelocitySurfaceLayer, &
+         !$acc             sfcFlxAttCoeff, &
+         !$acc             surfaceFluxAttenuationCoefficientRunoff)
+#endif
 
          ! ------------------------------------------------------------------
          ! Accumulating various parameterizations of the transport velocity
@@ -703,15 +851,10 @@ module ocn_time_integration_rk4
          !$omp end do
          !$omp end parallel
 
-         if (config_use_GM) then
-            !$omp parallel
-            !$omp do schedule(runtime)
-            do iEdge = 1, nEdges
-               normalTransportVelocity(:, iEdge) = normalTransportVelocity(:, iEdge) + normalGMBolusVelocity(:, iEdge)
-            end do
-            !$omp end do
-            !$omp end parallel
-         end if
+         ! add submesoscale aend gm components if requested
+         call ocn_GM_add_to_transport_vel(normalTransportVelocity, nEdges, nVertLevels)
+         call ocn_MLE_add_to_transport_vel(normalTransportVelocity, nEdges)
+
          ! ------------------------------------------------------------------
          ! End: Accumulating various parameterizations of the transport velocity
          ! ------------------------------------------------------------------
@@ -740,8 +883,8 @@ module ocn_time_integration_rk4
 
          call ocn_time_average_coupled_accumulate(statePool, forcingPool, 2)
 
-         if (config_use_GM) then
-            call ocn_reconstruct_gm_vectors(meshPool)
+         if (config_use_GM .or. config_submesoscale_enable) then
+            call ocn_reconstruct_eddy_vectors(meshPool)
          end if
 
          block => block % next
@@ -769,13 +912,15 @@ module ocn_time_integration_rk4
 
    end subroutine ocn_time_integrator_rk4!}}}
 
-   subroutine ocn_time_integrator_rk4_compute_vel_tends(block, dt, &
-     rkSubstepWeight, err)!{{{
+   subroutine ocn_time_integrator_rk4_compute_vel_tends(domain, block, dt, &
+     rkSubstepWeight, dminfo, err)!{{{
 
+      type (domain_type), intent(inout) :: domain !< Input/Output: domain information
       type (block_type), intent(in) :: block
       real (kind=RKIND), intent(in) :: dt
       real (kind=RKIND), intent(in) :: rkSubstepWeight
       integer, intent(out) :: err
+      type (dm_info), intent(in) :: dminfo
 
       type (mpas_pool_type), pointer :: meshPool, verticalMeshPool
       type (mpas_pool_type), pointer :: statePool, forcingPool
@@ -784,6 +929,7 @@ module ocn_time_integration_rk4
 
       real (kind=RKIND), dimension(:), pointer :: sshCur
       real (kind=RKIND), dimension(:, :), pointer :: layerThicknessCur, normalVelocityCur
+      real (kind=RKIND), dimension(:, :), pointer :: vertVelocityNonhydro
       real (kind=RKIND), dimension(:, :), pointer ::  normalVelocityProvis, highFreqThicknessProvis
 
       logical, pointer :: config_filter_btr_mode
@@ -805,28 +951,30 @@ module ocn_time_integration_rk4
       call mpas_pool_get_array(statePool, 'layerThickness', layerThicknessCur, 1)
       call mpas_pool_get_array(statePool, 'ssh', sshCur, 1)
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocityCur, 1)
+      call mpas_pool_get_array(statePool, 'vertVelocityNonhydro', vertVelocityNonhydro, 1)
 
       call mpas_pool_get_array(provisStatePool, 'normalVelocity', normalVelocityProvis, 1)
       call mpas_pool_get_array(provisStatePool, 'highFreqThickness', highFreqThicknessProvis, 1)
 
       ! advection of u uses u, while advection of layerThickness and tracers use normalTransportVelocity.
       if (associated(highFreqThicknessProvis)) then
-         call ocn_vert_transport_velocity_top(meshPool, verticalMeshPool, &
-            layerThicknessCur,layerThickEdge, normalVelocityProvis, &
-            sshCur, rkSubstepWeight, &
-            vertAleTransportTop, err, highFreqThicknessProvis)
+         call ocn_vert_transport_velocity_top(verticalMeshPool, &
+            layerThicknessCur,layerThickEdgeFlux, normalVelocityProvis, &
+            sshCur, rkSubstepWeight, vertAleTransportTop, err, &
+            highFreqThicknessProvis)
       else
-         call ocn_vert_transport_velocity_top(meshPool, verticalMeshPool, &
-            layerThicknessCur,layerThickEdge, normalVelocityProvis, &
-            sshCur, rkSubstepWeight, &
-            vertAleTransportTop, err)
+         call ocn_vert_transport_velocity_top(verticalMeshPool, &
+            layerThicknessCur,layerThickEdgeFlux, normalVelocityProvis, &
+            sshCur, rkSubstepWeight, vertAleTransportTop, err)
       endif
 
-      call ocn_tend_vel(tendPool, provisStatePool, forcingPool, 1, dt)
+      call ocn_tend_vel(domain, tendPool, provisStatePool, forcingPool, 1, dminfo, dt)
 
    end subroutine ocn_time_integrator_rk4_compute_vel_tends!}}}
 
-   subroutine ocn_time_integrator_rk4_compute_thick_tends(block, dt, rkSubstepWeight, err)!{{{
+   subroutine ocn_time_integrator_rk4_compute_vvel_tends(block, dt, &
+     rkSubstepWeight, err)
+
       type (block_type), intent(in) :: block
       real (kind=RKIND), intent(in) :: dt
       real (kind=RKIND), intent(in) :: rkSubstepWeight
@@ -839,7 +987,9 @@ module ocn_time_integration_rk4
 
       real (kind=RKIND), dimension(:), pointer :: sshCur
       real (kind=RKIND), dimension(:, :), pointer :: layerThicknessCur, normalVelocityCur
+      real (kind=RKIND), dimension(:, :), pointer :: vertVelocityNonhydroCur
       real (kind=RKIND), dimension(:, :), pointer ::  normalVelocityProvis, highFreqThicknessProvis
+      real (kind=RKIND), dimension(:, :), pointer ::  vertVelocityNonhydroProvis
 
       integer :: iEdge
       integer, pointer :: nEdges
@@ -863,34 +1013,100 @@ module ocn_time_integration_rk4
       call mpas_pool_get_array(statePool, 'layerThickness', layerThicknessCur, 1)
       call mpas_pool_get_array(statePool, 'ssh', sshCur, 1)
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocityCur, 1)
+      call mpas_pool_get_array(statePool, 'vertVelocityNonhydro', vertVelocityNonhydroCur, 1)
+
+      call mpas_pool_get_array(provisStatePool, 'vertVelocityNonhydro', vertVelocityNonhydroProvis, 1)
+      call mpas_pool_get_array(provisStatePool, 'normalVelocity', normalVelocityProvis, 1)
+      call mpas_pool_get_array(provisStatePool, 'highFreqThickness', highFreqThicknessProvis, 1)
+
+      ! advection of u uses u, while advection of layerThickness and tracers use normalTransportVelocity.
+      if (associated(highFreqThicknessProvis)) then
+         call ocn_vert_transport_velocity_top(verticalMeshPool, &
+            layerThicknessCur,layerThickEdgeFlux, normalVelocityProvis, &
+            sshCur, rkSubstepWeight, vertAleTransportTop, err, &
+            highFreqThicknessProvis)
+      else
+         call ocn_vert_transport_velocity_top(verticalMeshPool, &
+            layerThicknessCur,layerThickEdgeFlux, normalVelocityProvis, &
+            sshCur, rkSubstepWeight, vertAleTransportTop, err)
+      endif
+
+      call ocn_tend_vvel(tendPool, provisStatePool, forcingPool, meshPool, 1, dt)
+
+   end subroutine ocn_time_integrator_rk4_compute_vvel_tends
+
+   subroutine ocn_time_integrator_rk4_compute_thick_tends(block, dt, rkSubstepWeight, err)!{{{
+      type (block_type), intent(in) :: block
+      real (kind=RKIND), intent(in) :: dt
+      real (kind=RKIND), intent(in) :: rkSubstepWeight
+      integer, intent(out) :: err
+
+      type (mpas_pool_type), pointer :: meshPool, verticalMeshPool
+      type (mpas_pool_type), pointer :: statePool, forcingPool
+      type (mpas_pool_type), pointer :: scratchPool, tendPool, provisStatePool
+      type (mpas_pool_type), pointer :: tracersPool
+
+      real (kind=RKIND), dimension(:), pointer :: sshCur
+      real (kind=RKIND), dimension(:, :), pointer :: layerThicknessCur, normalVelocityCur
+      real (kind=RKIND), dimension(:, :), pointer :: vertVelocityNonhydro
+      real (kind=RKIND), dimension(:, :), pointer ::  normalVelocityProvis, highFreqThicknessProvis
+      real (kind=RKIND), dimension(:, :), pointer ::  vertVelocityNonhydroProvis
+
+      integer :: iEdge
+      integer, pointer :: nEdges, nVertLevels
+      logical, pointer :: config_filter_btr_mode
+
+      err = 0
+
+      call mpas_pool_get_config(block % configs, 'config_filter_btr_mode', config_filter_btr_mode)
+
+      call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+      call mpas_pool_get_subpool(block % structs, 'verticalMesh', verticalMeshPool)
+      call mpas_pool_get_subpool(block % structs, 'state', statePool)
+      call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
+      call mpas_pool_get_subpool(block % structs, 'scratch', scratchPool)
+      call mpas_pool_get_subpool(block % structs, 'tend', tendPool)
+      call mpas_pool_get_subpool(block % structs, 'provis_state', provisStatePool)
+
+      call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
+
+      call mpas_pool_get_dimension(block % dimensions, 'nEdges', nEdges)
+      call mpas_pool_get_dimension(block % dimensions, 'nVertLevels', nVertLevels)
+      call mpas_pool_get_array(statePool, 'layerThickness', layerThicknessCur, 1)
+      call mpas_pool_get_array(statePool, 'ssh', sshCur, 1)
+      call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocityCur, 1)
+      call mpas_pool_get_array(provisStatePool, 'vertVelocityNonhydro', vertVelocityNonhydro, 1)
 
       call mpas_pool_get_array(provisStatePool, 'normalVelocity', normalVelocityProvis, 1)
       call mpas_pool_get_array(provisStatePool, 'highFreqThickness', highFreqThicknessProvis, 1)
 
-      if (config_use_GM) then
-            !$omp parallel
-            !$omp do schedule(runtime)
-            do iEdge = 1, nEdges
-               normalTransportVelocity(:, iEdge) = normalVelocityProvis(:, iEdge) + normalGMBolusVelocity(:, iEdge)
-            end do
-            !$omp end do
-            !$omp end parallel
-         end if
+      if (config_use_GM .or. config_submesoscale_enable) then
+         !$omp parallel
+         !$omp do schedule(runtime)
+         do iEdge = 1, nEdges
+            normalTransportVelocity(:, iEdge) = normalVelocityProvis(:, iEdge)
+         end do
+         !$omp end do
+         !$omp end parallel
+      end if
+
+      ! add submesoscale and GM contributions if requested
+      call ocn_GM_add_to_transport_vel(normalTransportVelocity, nEdges, nVertLevels)
+      call ocn_MLE_add_to_transport_vel(normalTransportVelocity, nEdges)
 
       ! advection of u uses u, while advection of layerThickness and tracers use normalTransportVelocity.
       if (associated(highFreqThicknessProvis)) then
-         call ocn_vert_transport_velocity_top(meshPool, verticalMeshPool, &
-            layerThicknessCur, layerThickEdge, normalTransportVelocity, &
-            sshCur, rkSubstepWeight, &
-            vertAleTransportTop, err, highFreqThicknessProvis)
+         call ocn_vert_transport_velocity_top(verticalMeshPool, &
+            layerThicknessCur, layerThickEdgeFlux, normalTransportVelocity, &
+            sshCur, rkSubstepWeight, vertAleTransportTop, err, &
+            highFreqThicknessProvis)
       else
-         call ocn_vert_transport_velocity_top(meshPool, verticalMeshPool, &
-            layerThicknessCur, layerThickEdge, normalTransportVelocity, &
-            sshCur, rkSubstepWeight, &
-            vertAleTransportTop, err)
+         call ocn_vert_transport_velocity_top(verticalMeshPool, &
+            layerThicknessCur, layerThickEdgeFlux, normalTransportVelocity, &
+            sshCur, rkSubstepWeight, vertAleTransportTop, err)
       endif
 
-      call ocn_tend_thick(tendPool, forcingPool, meshPool)
+      call ocn_tend_thick(tendPool, forcingPool)
 
 
    end subroutine ocn_time_integrator_rk4_compute_thick_tends!}}}
@@ -908,12 +1124,13 @@ module ocn_time_integration_rk4
 
       real (kind=RKIND), dimension(:), pointer :: sshCur
       real (kind=RKIND), dimension(:, :), pointer :: layerThicknessCur, normalVelocityCur
+      real (kind=RKIND), dimension(:, :), pointer :: vertVelocityNonhydro
       real (kind=RKIND), dimension(:, :), pointer ::  normalVelocityProvis, highFreqThicknessProvis
 
       logical, pointer :: config_filter_btr_mode
 
       integer :: iEdge
-      integer, pointer :: nEdges
+      integer, pointer :: nEdges, nVertLevels
       err = 0
 
       call mpas_pool_get_config(block % configs, 'config_filter_btr_mode', config_filter_btr_mode)
@@ -930,34 +1147,38 @@ module ocn_time_integration_rk4
       call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
 
       call mpas_pool_get_dimension(block % dimensions, 'nEdges', nEdges)
+      call mpas_pool_get_dimension(block % dimensions, 'nVertLevels', nVertLevels)
       call mpas_pool_get_array(statePool, 'layerThickness', layerThicknessCur, 1)
       call mpas_pool_get_array(statePool, 'ssh', sshCur, 1)
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocityCur, 1)
+      call mpas_pool_get_array(provisStatePool, 'vertVelocityNonhydro', vertVelocityNonhydro, 1)
 
       call mpas_pool_get_array(provisStatePool, 'normalVelocity', normalVelocityProvis, 1)
       call mpas_pool_get_array(provisStatePool, 'highFreqThickness', highFreqThicknessProvis, 1)
 
-      if (config_use_GM) then
+      if (config_use_GM .or. config_submesoscale_enable) then
          !$omp parallel
          !$omp do schedule(runtime)
          do iEdge = 1, nEdges
-            normalTransportVelocity(:, iEdge) = normalVelocityProvis(:, iEdge) + normalGMBolusVelocity(:,iEdge)
+            normalTransportVelocity(:, iEdge) = normalVelocityProvis(:, iEdge)
          end do
          !$omp end do
          !$omp end parallel
       end if
 
+      call ocn_GM_add_to_transport_vel(normalTransportVelocity, nEdges, nVertLevels)
+      call ocn_MLE_add_to_transport_vel(normalTransportVelocity, nEdges)
+
       ! advection of u uses u, while advection of layerThickness and tracers use normalTransportVelocity.
       if (associated(highFreqThicknessProvis)) then
-         call ocn_vert_transport_velocity_top(meshPool, verticalMeshPool, &
-            layerThicknessCur, layerThickEdge, normalTransportVelocity, &
-            sshCur, rkSubstepWeight, &
-            vertAleTransportTop, err, highFreqThicknessProvis)
+         call ocn_vert_transport_velocity_top(verticalMeshPool, &
+            layerThicknessCur, layerThickEdgeFlux, normalTransportVelocity, &
+            sshCur, rkSubstepWeight, vertAleTransportTop, err, &
+            highFreqThicknessProvis)
       else
-         call ocn_vert_transport_velocity_top(meshPool, verticalMeshPool, &
-            layerThicknessCur, layerThickEdge, normalTransportVelocity, &
-            sshCur, rkSubstepWeight, &
-            vertAleTransportTop, err)
+         call ocn_vert_transport_velocity_top(verticalMeshPool, &
+            layerThicknessCur, layerThickEdgeFlux, normalTransportVelocity, &
+            sshCur, rkSubstepWeight, vertAleTransportTop, err)
       endif
 
       if (config_filter_btr_mode) then
@@ -969,12 +1190,14 @@ module ocn_time_integration_rk4
 
    end subroutine ocn_time_integrator_rk4_compute_tracer_tends!}}}
 
-   subroutine ocn_time_integrator_rk4_compute_tends(block, dt, rkWeight, err)!{{{
+   subroutine ocn_time_integrator_rk4_compute_tends(domain, block, dt, rkWeight, dminfo, err)!{{{
+      type (domain_type), intent(inout) :: domain !< Input/Output: domain information
       type (block_type), intent(in) :: block
       real (kind=RKIND), intent(in) :: dt
       real (kind=RKIND), intent(in) :: rkWeight
       integer, intent(out) :: err
 
+      type (dm_info), intent(in) :: dminfo
       type (mpas_pool_type), pointer :: meshPool, verticalMeshPool
       type (mpas_pool_type), pointer :: statePool, forcingPool
       type (mpas_pool_type), pointer :: scratchPool, tendPool, provisStatePool
@@ -982,6 +1205,7 @@ module ocn_time_integration_rk4
 
       real (kind=RKIND), dimension(:), pointer :: sshCur
       real (kind=RKIND), dimension(:, :), pointer :: layerThicknessCur, normalVelocityCur
+      real (kind=RKIND), dimension(:, :), pointer :: vertVelocityNonhydro
       real (kind=RKIND), dimension(:, :), pointer ::  normalVelocityProvis, highFreqThicknessProvis
 
       logical, pointer :: config_filter_btr_mode
@@ -1004,38 +1228,36 @@ module ocn_time_integration_rk4
       call mpas_pool_get_array(statePool, 'layerThickness', layerThicknessCur, 1)
       call mpas_pool_get_array(statePool, 'ssh', sshCur, 1)
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocityCur, 1)
+      call mpas_pool_get_array(statePool, 'vertVelocityNonhydro', vertVelocityNonhydro, 1)
 
       call mpas_pool_get_array(provisStatePool, 'normalVelocity', normalVelocityProvis, 1)
       call mpas_pool_get_array(provisStatePool, 'highFreqThickness', highFreqThicknessProvis, 1)
 
       ! advection of u uses u, while advection of layerThickness and tracers use normalTransportVelocity.
       if (associated(highFreqThicknessProvis)) then
-         call ocn_vert_transport_velocity_top(meshPool, verticalMeshPool, &
-            layerThicknessCur,layerThickEdge, normalVelocityProvis, &
-            sshCur, rkWeight, &
-            vertAleTransportTop, err, highFreqThicknessProvis)
+         call ocn_vert_transport_velocity_top(verticalMeshPool, &
+            layerThicknessCur,layerThickEdgeFlux, normalVelocityProvis, &
+            sshCur, rkWeight, vertAleTransportTop, err, &
+            highFreqThicknessProvis)
       else
-         call ocn_vert_transport_velocity_top(meshPool, verticalMeshPool, &
-            layerThicknessCur,layerThickEdge, normalVelocityProvis, &
-            sshCur, rkWeight, &
-            vertAleTransportTop, err)
+         call ocn_vert_transport_velocity_top(verticalMeshPool, &
+            layerThicknessCur,layerThickEdgeFlux, normalVelocityProvis, &
+            sshCur, rkWeight, vertAleTransportTop, err)
       endif
 
-      call ocn_tend_vel(tendPool, provisStatePool, forcingPool, 1, dt)
+      call ocn_tend_vel(domain, tendPool, provisStatePool, forcingPool, 1, dminfo, dt)
 
       if (associated(highFreqThicknessProvis)) then
-         call ocn_vert_transport_velocity_top(meshPool, verticalMeshPool, &
-            layerThicknessCur, layerThickEdge, normalTransportVelocity, &
-            sshCur, rkWeight, &
-            vertAleTransportTop, err, highFreqThicknessProvis)
+         call ocn_vert_transport_velocity_top(verticalMeshPool, &
+            layerThicknessCur, layerThickEdgeFlux, normalTransportVelocity, &
+            sshCur, rkWeight, vertAleTransportTop, err, highFreqThicknessProvis)
       else
-         call ocn_vert_transport_velocity_top(meshPool, verticalMeshPool, &
-            layerThicknessCur, layerThickEdge, normalTransportVelocity, &
-            sshCur, rkWeight, &
-            vertAleTransportTop, err)
+         call ocn_vert_transport_velocity_top(verticalMeshPool, &
+            layerThicknessCur, layerThickEdgeFlux, normalTransportVelocity, &
+            sshCur, rkWeight, vertAleTransportTop, err)
       endif
 
-      call ocn_tend_thick(tendPool, forcingPool, meshPool)
+      call ocn_tend_thick(tendPool, forcingPool)
 
       if (config_filter_btr_mode) then
           call ocn_filter_btr_mode_tend_vel(tendPool, provisStatePool, meshPool, 1)
@@ -1054,7 +1276,7 @@ module ocn_time_integration_rk4
 
       logical, pointer :: config_prescribe_velocity, config_prescribe_thickness, config_use_GM
 
-      integer, pointer :: nCells, nEdges
+      integer, pointer :: nCells, nEdges, nVertLevels
       integer :: iCell, iEdge, k
 
       type (mpas_pool_type), pointer :: statePool, tendPool, meshPool, scratchPool
@@ -1064,15 +1286,28 @@ module ocn_time_integration_rk4
       real (kind=RKIND), dimension(:, :), pointer :: normalVelocityCur, normalVelocityProvis, normalVelocityTend
       real (kind=RKIND), dimension(:, :), pointer :: layerThicknessCur, layerThicknessProvis, layerThicknessTend
       real (kind=RKIND), dimension(:, :), pointer :: lowFreqDivergenceCur, lowFreqDivergenceProvis, lowFreqDivergenceTend
+      real (kind=RKIND), dimension(:, :), pointer :: vertVelocityNonhydroCur, vertVelocityNonhydroTend
+      real (kind=RKIND), dimension(:, :), pointer :: vertVelocityNonhydroProvis
 
       real (kind=RKIND), dimension(:, :, :), pointer :: tracersGroupCur, tracersGroupProvis, tracersGroupTend
 
       integer, dimension(:), pointer :: minLevelCell, maxLevelCell, maxLevelEdgeTop
+      integer, dimension(:,:), pointer :: edgeMask
 
       logical, pointer :: config_use_tracerGroup
       type (mpas_pool_iterator_type) :: groupItr
       character (len=StrKIND) :: modifiedGroupName
       character (len=StrKIND) :: configName
+
+      real (kind=RKIND), dimension(:), pointer :: &
+        seaIcePressure, atmosphericPressure
+
+      real (kind=RKIND), dimension(:), pointer :: &
+        frazilSurfacePressure, landIcePressure, landIceDraft
+
+      real (kind=RKIND), dimension(:), pointer :: sshCur
+
+      real (kind=RKIND), dimension(:,:,:), pointer :: activeTracersCur
 
       err = 0
 
@@ -1082,7 +1317,7 @@ module ocn_time_integration_rk4
 
       call mpas_pool_get_dimension(block % dimensions, 'nCells', nCells)
       call mpas_pool_get_dimension(block % dimensions, 'nEdges', nEdges)
-
+      call mpas_pool_get_dimension(block % dimensions, 'nVertLevels', nVertLevels)
       call mpas_pool_get_subpool(block % structs, 'state', statePool)
       call mpas_pool_get_subpool(block % structs, 'tend', tendPool)
       call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
@@ -1097,6 +1332,7 @@ module ocn_time_integration_rk4
 
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocityCur, 1)
       call mpas_pool_get_array(statePool, 'layerThickness', layerThicknessCur, 1)
+      call mpas_pool_get_array(statePool, 'ssh', sshCur, 1)
       call mpas_pool_get_array(statePool, 'lowFreqDivergence', lowFreqDivergenceCur, 1)
 
       call mpas_pool_get_array(provisStatePool, 'normalVelocity', normalVelocityProvis, 1)
@@ -1110,13 +1346,24 @@ module ocn_time_integration_rk4
       call mpas_pool_get_array(meshPool, 'minLevelCell', minLevelCell)
       call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
       call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
+      call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
 
+      call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracersCur, 1)
+
+      if(config_enable_nonhydrostatic_mode) then
+         call mpas_pool_get_array(statePool, 'vertVelocityNonhydro', vertVelocityNonhydroCur, 1)
+         call mpas_pool_get_array(tendPool, 'vertVelocityNonhydroTend', vertVelocityNonhydroTend)
+         call mpas_pool_get_array(provisStatePool, 'vertVelocityNonhydro', vertVelocityNonhydroProvis, 1)
+      end if
+
+      ! the loop below is on all vertlevels but we used edgemask to set
+      ! velocities to zero below topo (esp. edges between topo and ocean)
       !$omp parallel
       !$omp do schedule(runtime) private(k)
       do iEdge = 1, nEdges
-         do k = 1, maxLevelEdgeTop(iEdge)
-            normalVelocityProvis(k, iEdge) = normalVelocityCur(k, iEdge) + rkSubstepWeight &
-                                           * normalVelocityTend(k, iEdge)
+         do k = 1, nVertLevels
+            normalVelocityProvis(k, iEdge) = edgeMask(k, iEdge)*(normalVelocityCur(k, iEdge) + rkSubstepWeight &
+                                           * normalVelocityTend(k, iEdge))
             normalVelocityProvis(k, iEdge) = normalVelocityProvis(k, iEdge) * (1.0_RKIND - wettingVelocity(k, iEdge))
          end do
       end do
@@ -1131,6 +1378,19 @@ module ocn_time_integration_rk4
       end do
       !$omp end do
       !$omp end parallel
+
+      if (config_enable_nonhydrostatic_mode) then
+         !$omp parallel
+         !$omp do schedule(runtime) private(k)
+         do iCell = 1, nCells
+            do k = 1, maxLevelCell(iCell)
+               vertVelocityNonhydroProvis(k, iCell) = vertVelocityNonhydroCur(k, iCell) + rkSubstepWeight &
+                                                * vertVelocityNonhydroTend(k, iCell)
+            end do
+         end do
+         !$omp end do
+         !$omp end parallel
+      end if
 
       call mpas_pool_begin_iteration(tracersPool)
       do while ( mpas_pool_get_next_member(tracersPool, groupItr) )
@@ -1181,6 +1441,17 @@ module ocn_time_integration_rk4
          end do
          !$omp end do
          !$omp end parallel
+
+         if (config_enable_nonhydrostatic_mode) then
+            !$omp parallel
+            !$omp do schedule(runtime)
+            do iCell = 1, nCells
+               vertVelocityNonhydroProvis(:,iCell) = vertVelocityNonhydroCur(:, iCell)
+            end do
+            !$omp end do
+            !$omp end parallel
+        end if
+
       end if
 
       if (config_prescribe_thickness) then
@@ -1193,7 +1464,81 @@ module ocn_time_integration_rk4
          !$omp end parallel
       end if
 
+      call mpas_pool_get_array(forcingPool, 'seaIcePressure', seaIcePressure)
+      call mpas_pool_get_array(forcingPool, 'atmosphericPressure', atmosphericPressure)
+      call mpas_pool_get_array(forcingPool, 'frazilSurfacePressure', frazilSurfacePressure)
+
+      if (landIcePressureOn) then
+         call mpas_pool_get_array(forcingPool, 'landIcePressure', landIcePressure)
+         call mpas_pool_get_array(forcingPool, 'landIceDraft', landIceDraft)
+      endif
+
+#ifdef MPAS_OPENACC
+      !$acc enter data copyin(layerThicknessCur, normalVelocityCur)
+      !$acc update device (normalTransportVelocity)
+      if (config_use_gm) then
+         !$acc update device (normalGMBolusVelocity)
+      end if
+      if (config_submesoscale_enable) then
+         !$acc update device (normalMLEvelocity)
+      end if
+      !$acc enter data copyin(atmosphericPressure, seaIcePressure)
+      !$acc enter data copyin(sshCur)
+      !$acc enter data copyin(activeTracersCur)
+      !$acc update device(tracersSurfaceValue)
+      if ( associated(frazilSurfacePressure) ) then
+         !$acc enter data copyin(frazilSurfacePressure)
+      endif
+      if (landIcePressureOn) then
+         !$acc enter data copyin(landIcePressure)
+         !$acc enter data copyin(landIceDraft)
+      endif
+#endif
       call ocn_diagnostic_solve(dt, provisStatePool, forcingPool, meshPool, scratchPool, tracersPool, 1)
+#ifdef MPAS_OPENACC
+      !$acc update host(layerThickEdgeFlux, layerThickEdgeMean)
+      !$acc update host(relativeVorticity, circulation)
+      if (config_use_gm) then
+         !$acc update host(vertGMBolusVelocityTop)
+      end if
+      if (config_submesoscale_enable) then
+         !$acc update host(vertMLEBolusVelocityTop)
+      end if
+      !$acc update host(vertTransportVelocityTop, &
+      !$acc             relativeVorticityCell, &
+      !$acc             divergence, &
+      !$acc             kineticEnergyCell, &
+      !$acc             tangentialVelocity, &
+      !$acc             vertVelocityTop)
+      !$acc update host(normRelVortEdge, normPlanetVortEdge, &
+      !$acc             normalizedRelativeVorticityCell)
+      !$acc update host (surfacePressure)
+      !$acc update host(zMid, zTop)
+      !$acc exit data copyout(sshCur)
+      !$acc exit data delete(activeTracersCur)
+      !$acc update host(tracersSurfaceValue)
+      !$acc update host(normalVelocitySurfaceLayer)
+      !$acc exit data delete (atmosphericPressure, seaIcePressure)
+      if ( associated(frazilSurfacePressure) ) then
+         !$acc exit data delete(frazilSurfacePressure)
+      endif
+      if (landIcePressureOn) then
+         !$acc exit data delete(landIcePressure)
+         !$acc exit data delete(landIceDraft)
+      endif
+      !$acc exit data delete(layerThicknessCur, normalVelocityCur)
+      !$acc update host(density, potentialDensity, displacedDensity)
+      !$acc update host(thermExpCoeff,  &
+      !$acc&            salineContractCoeff)
+      !$acc update host(montgomeryPotential, pressure)
+      !$acc update host(RiTopOfCell, &
+      !$acc             BruntVaisalaFreqTop)
+      !$acc update host(tracersSurfaceLayerValue, &
+      !$acc             indexSurfaceLayerDepth, &
+      !$acc             normalVelocitySurfaceLayer, &
+      !$acc             sfcFlxAttCoeff, &
+      !$acc             surfaceFluxAttenuationCoefficientRunoff)
+#endif
 
       ! ------------------------------------------------------------------
       ! Accumulating various parametrizations of the transport velocity
@@ -1206,15 +1551,10 @@ module ocn_time_integration_rk4
       !$omp end do
       !$omp end parallel
 
-      if (config_use_GM) then
-         !$omp parallel
-         !$omp do schedule(runtime)
-         do iEdge = 1, nEdges
-            normalTransportVelocity(:, iEdge) = normalTransportVelocity(:, iEdge) + normalGMBolusVelocity(:,iEdge)
-         end do
-         !$omp end do
-         !$omp end parallel
-      end if
+      ! add submesoscale and GM contributions if requested
+      call ocn_GM_add_to_transport_vel(normalTransportVelocity, nEdges, nVertLevels)
+      call ocn_MLE_add_to_transport_vel(normalTransportVelocity, nEdges)
+
       ! ------------------------------------------------------------------
       ! End: Accumulating various parametrizations of the transport velocity
       ! ------------------------------------------------------------------
@@ -1226,7 +1566,7 @@ module ocn_time_integration_rk4
       real (kind=RKIND), intent(in) :: rkWeight
       integer, intent(out) :: err
 
-      integer, pointer :: nCells, nEdges
+      integer, pointer :: nCells, nEdges, nVertLevels
       integer :: iCell, iEdge, k
 
       type (mpas_pool_type), pointer :: statePool, tendPool, meshPool
@@ -1236,10 +1576,13 @@ module ocn_time_integration_rk4
       real (kind=RKIND), dimension(:, :), pointer :: layerThicknessNew, layerThicknessTend
       real (kind=RKIND), dimension(:, :), pointer :: highFreqThicknessNew, highFreqThicknessTend
       real (kind=RKIND), dimension(:, :), pointer :: lowFreqDivergenceNew, lowFreqDivergenceTend
+      real (kind=RKIND), dimension(:, :), pointer :: vertVelocityNonhydroNew
+      real (kind=RKIND), dimension(:, :), pointer :: vertVelocityNonhydroTend
 
       real (kind=RKIND), dimension(:, :, :), pointer :: tracersGroupNew, tracersGroupTend
 
       integer, dimension(:), pointer :: minLevelCell, maxLevelCell
+      integer, dimension(:,:), pointer :: edgeMask
 
       logical, pointer :: config_use_tracerGroup
       type (mpas_pool_iterator_type) :: groupItr
@@ -1250,6 +1593,7 @@ module ocn_time_integration_rk4
 
       call mpas_pool_get_dimension(block % dimensions, 'nCells', nCells)
       call mpas_pool_get_dimension(block % dimensions, 'nEdges', nEdges)
+      call mpas_pool_get_dimension(block % dimensions, 'nVertLevels', nVertLevels)
 
       call mpas_pool_get_subpool(block % structs, 'state', statePool)
       call mpas_pool_get_subpool(block % structs, 'tend', tendPool)
@@ -1271,11 +1615,17 @@ module ocn_time_integration_rk4
       call mpas_pool_get_array(tendPool, 'normalVelocity', normalVelocityTend)
       call mpas_pool_get_array(tendPool, 'layerThickness', layerThicknessTend)
 
+      if (config_enable_nonhydrostatic_mode) then
+         call mpas_pool_get_array(tendPool, 'vertVelocityNonhydroTend', vertVelocityNonhydroTend)
+         call mpas_pool_get_array(statePool, 'vertVelocityNonhydro', vertVelocityNonhydroNew, 2)
+      end if
+
       call mpas_pool_get_array(tendPool, 'highFreqThickness', highFreqThicknessTend)
       call mpas_pool_get_array(tendPool, 'lowFreqDivergence', lowFreqDivergenceTend)
 
       call mpas_pool_get_array(meshPool, 'minLevelCell', minLevelCell)
       call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
+      call mpas_pool_get_array(meshPool, 'edgeMask', edgeMask)
 
       !$omp parallel
       !$omp do schedule(runtime) private(k)
@@ -1285,14 +1635,29 @@ module ocn_time_integration_rk4
          end do
       end do
       !$omp end do
-
+      
+      ! the loop below is on all vertlevels but we used edgemask to set
+      ! velocities to zero below topo (esp. edges between topo and ocean)
       !$omp do schedule(runtime)
       do iEdge = 1, nEdges
-         normalVelocityNew(:, iEdge) = normalVelocityNew(:, iEdge) + rkWeight * normalVelocityTend(:, iEdge)
-         normalVelocityNew(:, iEdge) = normalVelocityNew(:, iEdge) * (1.0_RKIND - wettingVelocity(:, iEdge))
+         do k = 1, nVertLevels
+            normalVelocityNew(k, iEdge) = edgeMask(k,iEdge) &
+                                      *(normalVelocityNew(k, iEdge) + rkWeight * normalVelocityTend(k, iEdge))
+            normalVelocityNew(k, iEdge) = normalVelocityNew(k, iEdge) * (1.0_RKIND - wettingVelocity(k, iEdge))
+         end do
       end do
       !$omp end do
       !$omp end parallel
+
+      if (config_enable_nonhydrostatic_mode) then
+         !$omp parallel
+         !$omp do schedule(runtime)
+         do iCell = 1, nCells
+            vertVelocityNonhydroNew(:, iCell) = vertVelocityNonhydroNew(:, iCell) + rkWeight * vertVelocityNonhydroTend(:, iCell)
+         end do
+         !$omp end do
+         !$omp end parallel
+      end if
 
       call mpas_pool_begin_iteration(tracersPool)
       do while ( mpas_pool_get_next_member(tracersPool, groupItr) )
@@ -1343,12 +1708,13 @@ module ocn_time_integration_rk4
 
    end subroutine ocn_time_integrator_rk4_accumulate_update!}}}
 
-   subroutine ocn_time_integrator_rk4_cleanup(block, dt, err)!{{{
+   subroutine ocn_time_integrator_rk4_cleanup(block, dt, dminfo, err)!{{{
       type (block_type), intent(in) :: block
+      type (dm_info), intent(in) :: dminfo
       real (kind=RKIND), intent(in) :: dt
       integer, intent(out) :: err
 
-      integer, pointer :: nCells, nEdges, indexTemperature, indexSalinity
+      integer, pointer :: nCells, nEdges
       integer :: iCell, iEdge, k
 
       type (mpas_pool_type), pointer :: statePool, meshPool, forcingPool
@@ -1356,6 +1722,8 @@ module ocn_time_integration_rk4
       type (mpas_pool_type), pointer :: tracersPool
 
       real (kind=RKIND), dimension(:, :), pointer :: layerThicknessNew, normalVelocityNew
+      real (kind=RKIND), dimension(:, :), pointer :: vertVelocityNonhydroNew
+      real (kind=RKIND), dimension(:, :), pointer :: nonhydrostaticPressure
       real (kind=RKIND), dimension(:, :, :), pointer :: tracersGroupNew
 
       integer, dimension(:), pointer :: minLevelCell, maxLevelCell
@@ -1366,6 +1734,16 @@ module ocn_time_integration_rk4
       character (len=StrKIND) :: configName
 
       logical, pointer :: config_use_GM
+
+      real (kind=RKIND), dimension(:), pointer :: &
+        seaIcePressure, atmosphericPressure
+
+      real (kind=RKIND), dimension(:), pointer :: &
+        frazilSurfacePressure, landIcePressure, landIceDraft
+
+      real (kind=RKIND), dimension(:), pointer :: sshNew
+
+      real (kind=RKIND), dimension(:,:,:), pointer :: activeTracersNew
 
       err = 0
 
@@ -1383,12 +1761,24 @@ module ocn_time_integration_rk4
 
       call mpas_pool_get_array(statePool, 'layerThickness', layerThicknessNew, 2)
       call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocityNew, 2)
+      call mpas_pool_get_array(statePool, 'ssh', sshNew, 2)
 
-      call mpas_pool_get_dimension(tracersPool, 'index_temperature', indexTemperature)
-      call mpas_pool_get_dimension(tracersPool, 'index_salinity', indexSalinity)
+      call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracersNew, 2)
 
       call mpas_pool_get_array(meshPool, 'minLevelCell', minLevelCell)
       call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
+
+      call mpas_pool_get_array(forcingPool, 'seaIcePressure', seaIcePressure)
+      call mpas_pool_get_array(forcingPool, 'atmosphericPressure', atmosphericPressure)
+
+      if (landIcePressureOn) then
+          call mpas_pool_get_array(forcingPool, 'landIcePressure', landIcePressure)
+          call mpas_pool_get_array(forcingPool, 'landIceDraft', landIceDraft)
+      endif
+
+      if (config_enable_nonhydrostatic_mode) then
+         call mpas_pool_get_array(statePool, 'vertVelocityNonhydro', vertVelocityNonhydroNew, 2)
+      end if
 
       call mpas_pool_begin_iteration(tracersPool)
       do while ( mpas_pool_get_next_member(tracersPool, groupItr) )
@@ -1408,9 +1798,80 @@ module ocn_time_integration_rk4
          end if
       end do
 
+#ifdef MPAS_OPENACC
+      !$acc enter data copyin(layerThicknessNew, normalVelocityNew)
+      !$acc update device (normalTransportVelocity, &
+      !$acc                normalGMBolusVelocity,normalMLEvelocity)
+      if (config_use_gm) then
+         !$acc update device (normalGMBolusVelocity)
+      end if
+      if (config_submesoscale_enable) then
+         !$acc update device (normalMLEvelocity)
+      end if
+      !$acc enter data copyin(atmosphericPressure, seaIcePressure)
+      !$acc enter data copyin(sshNew)
+      !$acc enter data copyin(activeTracersNew)
+      !$acc update device(tracersSurfaceValue)
+      if ( associated(frazilSurfacePressure) ) then
+         !$acc enter data copyin(frazilSurfacePressure)
+      endif
+      if (landIcePressureOn) then
+         !$acc enter data copyin(landIcePressure)
+         !$acc enter data copyin(landIceDraft)
+      endif
+#endif
       call ocn_diagnostic_solve(dt, statePool, forcingPool, meshPool, scratchPool, tracersPool, 2)
+#ifdef MPAS_OPENACC
+      !$acc update host(layerThickEdgeFlux, layerThickEdgeMean)
+      !$acc update host(relativeVorticity, circulation)
+      if (config_use_gm) then
+         !$acc update host(vertGMBolusVelocityTop)
+      end if
+      if (config_submesoscale_enable) then
+         !$acc update host(vertMLEBolusVelocityTop)
+      end if
+      !$acc update host(vertTransportVelocityTop, &
+      !$acc             relativeVorticityCell, &
+      !$acc             divergence, &
+      !$acc             kineticEnergyCell, &
+      !$acc             tangentialVelocity, &
+      !$acc             vertVelocityTop)
+      !$acc update host(normRelVortEdge, normPlanetVortEdge, &
+      !$acc             normalizedRelativeVorticityCell)
+      !$acc update host (surfacePressure)
+      !$acc update host(zMid, zTop)
+      !$acc exit data copyout(sshNew)
+      !$acc exit data delete(activeTracersNew)
+      !$acc update host(tracersSurfaceValue)
+      !$acc update host(normalVelocitySurfaceLayer)
+      !$acc exit data delete (atmosphericPressure, seaIcePressure)
+      if ( associated(frazilSurfacePressure) ) then
+         !$acc exit data delete(frazilSurfacePressure)
+      endif
+      if (landIcePressureOn) then
+         !$acc exit data delete(landIcePressure)
+         !$acc exit data delete(landIceDraft)
+      endif
+      !$acc exit data delete (layerThicknessNew, normalVelocityNew)
+      !$acc update host(density, potentialDensity, displacedDensity)
+      !$acc update host(thermExpCoeff,  &
+      !$acc&            salineContractCoeff)
+      !$acc update host(montgomeryPotential, pressure)
+      !$acc update host(RiTopOfCell, &
+      !$acc             BruntVaisalaFreqTop)
+      !$acc update host(tracersSurfaceLayerValue, &
+      !$acc             indexSurfaceLayerDepth, &
+      !$acc             normalVelocitySurfaceLayer, &
+      !$acc             sfcFlxAttCoeff, &
+      !$acc             surfaceFluxAttenuationCoefficientRunoff)
+#endif
 
       call ocn_vmix_implicit(dt, meshPool, statePool, forcingPool, scratchPool, err, 2)
+
+      if (config_enable_nonhydrostatic_mode) then
+         call ocn_nonhydrostatic_pressure_tend(normalVelocityNew, vertVelocityNonhydroNew, layerThicknessNew, &
+              layerThickEdgeMean, nhPressureCorrection, dminfo % comm, dt)
+      end if
 
    end subroutine ocn_time_integrator_rk4_cleanup!}}}
 
