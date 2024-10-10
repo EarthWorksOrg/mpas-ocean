@@ -284,7 +284,7 @@ def _build_mpaso():
         # build the library
         makefile = os.path.join(casetools, "Makefile")
         complib = os.path.join(libroot, "libocn.a")
-        cmd = "{} complib -j {} MODEL=mpaso COMPLIB={} -f {} USER_CPPDEFS=\"-DUSE_PIO2 -DMPAS_PIO_SUPPORT -D_MPI -DEXCLUDE_INIT_MODE  -DUSE_LAPACK -DMPAS_NO_ESMF_INIT -DMPAS_PERF_MOD_TIMERS -DMPAS_EXTERNAL_ESMF_LIB -DMPAS_NAMELIST_SUFFIX=ocean\" FIXEDFLAGS={} {}" \
+        cmd = "{} complib -j {} MODEL=mpaso COMPLIB={} -f {} USER_CPPDEFS=\"-DUSE_PIO2 -DMPAS_PIO_SUPPORT -D_MPI -DEXCLUDE_INIT_MODE -DMPAS_NO_ESMF_INIT -DMPAS_EXTERNAL_ESMF_LIB -DMPAS_PERF_MOD_TIMERS -DMPAS_NAMELIST_SUFFIX=ocean\" FIXEDFLAGS={} {}" \
             .format(gmake, gmake_j, complib, makefile, fixedflags, get_standard_makefile_args(case))
 
         rc, out, err = run_cmd(cmd, from_dir=os.path.join(objroot, "ocn", "obj"))
