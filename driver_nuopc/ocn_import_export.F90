@@ -116,6 +116,23 @@ contains
     call fldlist_add(fldsToOcn_num, fldsToOcn, 'Foxx_evap')
     call fldlist_add(fldsToOcn_num, fldsToOcn, 'Foxx_swnet')
 
+    ! from wave
+    call fldlist_add(fldsToOcn_num, fldsToOcn, 'Sw_Hs')
+    call fldlist_add(fldsToOcn_num, fldsToOcn, 'Sw_Fp')
+    call fldlist_add(fldsToOcn_num, fldsToOcn, 'Sw_Dp')
+    call fldlist_add(fldsToOcn_num, fldsToOcn, 'Sw_ustokes_wavenumber_1')
+    call fldlist_add(fldsToOcn_num, fldsToOcn, 'Sw_vstokes_wavenumber_1')
+    call fldlist_add(fldsToOcn_num, fldsToOcn, 'Sw_ustokes_wavenumber_2')
+    call fldlist_add(fldsToOcn_num, fldsToOcn, 'Sw_vstokes_wavenumber_2')
+    call fldlist_add(fldsToOcn_num, fldsToOcn, 'Sw_ustokes_wavenumber_3')
+    call fldlist_add(fldsToOcn_num, fldsToOcn, 'Sw_vstokes_wavenumber_3')
+    call fldlist_add(fldsToOcn_num, fldsToOcn, 'Sw_ustokes_wavenumber_4')
+    call fldlist_add(fldsToOcn_num, fldsToOcn, 'Sw_vstokes_wavenumber_4')
+    call fldlist_add(fldsToOcn_num, fldsToOcn, 'Sw_ustokes_wavenumber_5')
+    call fldlist_add(fldsToOcn_num, fldsToOcn, 'Sw_vstokes_wavenumber_5')
+    call fldlist_add(fldsToOcn_num, fldsToOcn, 'Sw_ustokes_wavenumber_6')
+    call fldlist_add(fldsToOcn_num, fldsToOcn, 'Sw_vstokes_wavenumber_6')
+
     ! from atmosphere
     call fldlist_add(fldsToOcn_num, fldsToOcn, 'Sa_pslv')
     call fldlist_add(fldsToOcn_num, fldsToOcn, 'Faxa_lwdn')
@@ -378,6 +395,22 @@ contains
     real (r8), pointer   :: foxx_rofl(:)
     real (r8), pointer   :: foxx_rofi(:)
     real (r8), pointer   :: so_duu10n(:)
+    ! from wave
+    real (r8), pointer   :: sw_hs(:)
+    real (r8), pointer   :: sw_fp(:)
+    real (r8), pointer   :: sw_dp(:)
+    real (r8), pointer   :: Sw_ustokes_wavenumber_1(:)
+    real (r8), pointer   :: Sw_vstokes_wavenumber_1(:)
+    real (r8), pointer   :: Sw_ustokes_wavenumber_2(:)
+    real (r8), pointer   :: Sw_vstokes_wavenumber_2(:)
+    real (r8), pointer   :: Sw_ustokes_wavenumber_3(:)
+    real (r8), pointer   :: Sw_vstokes_wavenumber_3(:)
+    real (r8), pointer   :: Sw_ustokes_wavenumber_4(:)
+    real (r8), pointer   :: Sw_vstokes_wavenumber_4(:)
+    real (r8), pointer   :: Sw_ustokes_wavenumber_5(:)
+    real (r8), pointer   :: Sw_vstokes_wavenumber_5(:)
+    real (r8), pointer   :: Sw_ustokes_wavenumber_6(:)
+    real (r8), pointer   :: Sw_vstokes_wavenumber_6(:)
     ! from atm
     real (r8), pointer   :: sa_pslv(:)
     real (r8), pointer   :: faxa_rain(:)
@@ -424,7 +457,13 @@ contains
                                            shortWaveHeatFluxField, longWaveHeatFluxUpField, &
                                            seaIceFreshWaterFluxField, seaIceHeatFluxField,  &
                                            seaIceSalinityFluxField, atmosphericPressureField, &
-                                           iceFractionField, seaIcePressureField
+                                           iceFractionField, seaIcePressureField!,           &
+!                                           significantWaveHeightField, &
+!                                           peakWaveFrequencyField, &
+!                                           peakWaveDirectionField
+
+!   type (field2DReal), pointer :: stokesDriftZonalWavenumberField, &
+!                                  stokesDriftMeridionalWavenumberField
 
     character (cl), allocatable :: fieldNameList(:)
     character(len=*), parameter :: subname='(ocn_import_export:ocn_import)'
@@ -512,6 +551,45 @@ contains
     !-----------------------------------------------------------------------
     ! from wave
     !-----------------------------------------------------------------------
+    ! Significant wave height
+    call state_getfldptr(importState, 'Sw_Hs', sw_hs, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    ! Peak wave frequency
+    call state_getfldptr(importState, 'Sw_Fp', sw_fp, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    ! Peak wave direction
+    call state_getfldptr(importState, 'Sw_Dp', sw_dp, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    ! partitioned Stokes drift wavenumber 1 
+    call state_getfldptr(importState, 'Sw_ustokes_wavenumber_1', Sw_ustokes_wavenumber_1, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call state_getfldptr(importState, 'Sw_vstokes_wavenumber_1', Sw_vstokes_wavenumber_1, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    ! partitioned Stokes drift wavenumber 2 
+    call state_getfldptr(importState, 'Sw_ustokes_wavenumber_2', Sw_ustokes_wavenumber_2, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call state_getfldptr(importState, 'Sw_vstokes_wavenumber_2', Sw_vstokes_wavenumber_2, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    ! partitioned Stokes drift wavenumber 3 
+    call state_getfldptr(importState, 'Sw_ustokes_wavenumber_3', Sw_ustokes_wavenumber_3, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call state_getfldptr(importState, 'Sw_vstokes_wavenumber_3', Sw_vstokes_wavenumber_3, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    ! partitioned Stokes drift wavenumber 4 
+    call state_getfldptr(importState, 'Sw_ustokes_wavenumber_4', Sw_ustokes_wavenumber_4, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call state_getfldptr(importState, 'Sw_vstokes_wavenumber_4', Sw_vstokes_wavenumber_4, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    ! partitioned Stokes drift wavenumber 5 
+    call state_getfldptr(importState, 'Sw_ustokes_wavenumber_5', Sw_ustokes_wavenumber_5, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call state_getfldptr(importState, 'Sw_vstokes_wavenumber_5', Sw_vstokes_wavenumber_5, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    ! partitioned Stokes drift wavenumber 6 
+    call state_getfldptr(importState, 'Sw_ustokes_wavenumber_6', Sw_ustokes_wavenumber_6, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call state_getfldptr(importState, 'Sw_vstokes_wavenumber_6', Sw_vstokes_wavenumber_6, rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     !-----------------------------------------------------------------------
     ! from river
@@ -573,6 +651,13 @@ contains
           removedIceRunoffFlux(:) = 0.0_RKIND
        endif
 
+!      ! from wave
+!      call mpas_pool_get_field(forcingPool, 'stokesDriftZonalWavenumber', stokesDriftZonalWavenumberField)
+!      call mpas_pool_get_field(forcingPool, 'stokesDriftMeridionalWavenumber', stokesDriftMeridionalWavenumberField)
+!      call mpas_pool_get_field(forcingPool, 'significantWaveHeight', significantWaveHeightField)
+!      call mpas_pool_get_field(forcingPool, 'peakWaveFrequency', peakWaveFrequencyField)
+!      call mpas_pool_get_field(forcingPool, 'peakWaveDirection', peakWaveDirectionField)
+
        do iCell = 1, nCells
           gcell = iCell + cell_offset
              
@@ -622,7 +707,24 @@ contains
          enddo
          call shr_sys_abort('(set_surface_forcing) ERROR: SHF_QSW < qsw_eps in set_surface_forcing')
        endif
-
+       
+       ! for wave - uncomment later
+       !stokesDriftZonalWavenumberField(gcell,1) = Sw_ustokes_wavenumber_1(gcell) * med2mod_areacor(gcell)
+       !stokesDriftZonalWavenumberField(gcell,2) = Sw_ustokes_wavenumber_2(gcell) * med2mod_areacor(gcell)
+       !stokesDriftZonalWavenumberField(gcell,3) = Sw_ustokes_wavenumber_3(gcell) * med2mod_areacor(gcell)
+       !stokesDriftZonalWavenumberField(gcell,4) = Sw_ustokes_wavenumber_4(gcell) * med2mod_areacor(gcell)
+       !stokesDriftZonalWavenumberField(gcell,5) = Sw_ustokes_wavenumber_5(gcell) * med2mod_areacor(gcell)
+       !stokesDriftZonalWavenumberField(gcell,6) = Sw_ustokes_wavenumber_6(gcell) * med2mod_areacor(gcell)
+       !stokesDriftMeridionalWavenumberField(gcell,1) = Sw_vstokes_wavenumber_1(gcell) * med2mod_areacor(gcell)
+       !stokesDriftMeridionalWavenumberField(gcell,2) = Sw_vstokes_wavenumber_2(gcell) * med2mod_areacor(gcell)
+       !stokesDriftMeridionalWavenumberField(gcell,3) = Sw_vstokes_wavenumber_3(gcell) * med2mod_areacor(gcell)
+       !stokesDriftMeridionalWavenumberField(gcell,4) = Sw_vstokes_wavenumber_4(gcell) * med2mod_areacor(gcell)
+       !stokesDriftMeridionalWavenumberField(gcell,5) = Sw_vstokes_wavenumber_5(gcell) * med2mod_areacor(gcell)
+       !stokesDriftMeridionalWavenumberField(gcell,6) = Sw_vstokes_wavenumber_6(gcell) * med2mod_areacor(gcell)
+       !significantWaveHeightField(gcell) = Sw_hs(gcell) * med2mod_areacor(gcell)
+       !peakWaveFrequencyField(gcell) = Sw_fp(gcell) * med2mod_areacor(gcell)
+       !peakWaveDirectionField(gcell) = Sw_dp(gcell) * med2mod_areacor(gcell)
+       
        cell_offset = cell_offset + nCells
        
        block => block % next
@@ -650,6 +752,11 @@ contains
       call mpas_pool_get_field(forcingPool, 'iceFraction', iceFractionField)
       call mpas_pool_get_field(forcingPool, 'iceRunoffFlux', iceRunoffFluxField)
       call mpas_pool_get_field(forcingPool, 'seaIcePressure', seaIcePressureField)
+!      call mpas_pool_get_field(forcingPool, 'stokesDriftZonalWavenumber', stokesDriftZonalWavenumberField)
+!      call mpas_pool_get_field(forcingPool, 'stokesDriftMeridionalWavenumber', stokesDriftMeridionalWavenumberField)
+!      call mpas_pool_get_field(forcingPool, 'significantWaveHeight', significantWaveHeightField)
+!      call mpas_pool_get_field(forcingPool, 'peakWaveFrequency', peakWaveFrequencyField)
+!      call mpas_pool_get_field(forcingPool, 'peakWaveDirection', peakWaveDirectionField)
       if ( windStressZonalField % isActive ) &
          call mpas_dmpar_exch_halo_field(windStressZonalField)
       if ( windStressMeridionalField % isActive ) &
@@ -686,6 +793,16 @@ contains
          call mpas_dmpar_exch_halo_field(iceFractionField)
       if ( seaIcePressureField % isActive ) &
          call mpas_dmpar_exch_halo_field(seaIcePressureField)
+!      if ( stokesDriftZonalWavenumberField % isActive ) &
+!         call mpas_dmpar_exch_halo_field(stokesDriftZonalWavenumberField)
+!      if ( stokesDriftMeridionalWavenumberField % isActive ) &
+!         call mpas_dmpar_exch_halo_field(stokesDriftMeridionalWavenumberField)
+!      if ( significantWaveHeightField % isActive ) &
+!         call mpas_dmpar_exch_halo_field(significantWaveHeightField)
+!      if ( peakWaveFrequencyField % isActive ) &
+!         call mpas_dmpar_exch_halo_field(peakWaveFrequencyField)
+!      if ( peakWaveDirection % isActive ) &
+!         call mpas_dmpar_exch_halo_field(peakWaveDirection)
 
    ! global sum of removed runoff
    if (config_remove_AIS_coupler_runoff) then
