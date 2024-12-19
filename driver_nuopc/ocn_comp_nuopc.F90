@@ -69,7 +69,7 @@ module ocn_comp_nuopc
        __FILE__
 
   integer           :: lmpicom
-  integer           :: stdout 
+  integer           :: ocnLogUnit 
   integer           :: nThreads        ! number of threads per mpi task for this component
   character(len=CL)   :: flds_scalar_name = ''
   integer             :: flds_scalar_num = 0
@@ -82,7 +82,6 @@ module ocn_comp_nuopc
   type (iosystem_desc_t), pointer :: io_system 
   integer :: itimestep   ! time step number for MPAS
 
-  integer :: ocnLogUnit ! unit number for ocn log
 !  character (len=*), parameter :: coupleAlarmID = 'coupling'
   character(len=StrKIND) :: coupleTimeStamp
 
@@ -205,7 +204,7 @@ contains
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     ! reset shr logging to my log file
-    call set_component_logging(gcomp, iam==0, stdout, shrlogunit, rc)
+    call set_component_logging(gcomp, iam==0, ocnLogUnit, shrlogunit, rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     call NUOPC_CompAttributeGet(gcomp, name="ScalarFieldName", value=cvalue, rc=rc)
@@ -466,7 +465,7 @@ contains
     ! Set up log file information
     ! ----------------
     !?!?inst_suffix = seq_comm_suffix(ocnID) ! a suffix to append to log file name
-    ocnLogUnit = shr_file_getUnit() ! reserve unit number for log unit
+    !ocnLogUnit = shr_file_getUnit() ! reserve unit number for log unit
     ocnPossibleErrUnit = shr_file_getUnit() ! reserve unit number for possible error log file
 
 !    ! Note: In following code, a file ocn_modelio.nml is queried to determine the log file name to use.
@@ -558,7 +557,7 @@ contains
     else if (trim(starttype) == trim('branch')) then
        runtype = "continue"
     else
-       !write(stdout,*) 'ocn_comp_nuopc: ERROR: unknown starttype'
+       !write(ocnLogUnit,*) 'ocn_comp_nuopc: ERROR: unknown starttype'
        call ESMF_LogWrite(trim(subname)//'ERROR: unknown starttype',ESMF_LOGMSG_INFO, rc=rc)
        rc = ESMF_FAILURE
        return
@@ -952,7 +951,7 @@ contains
     !mastertask = iam == domain_ptr % dminfo % my_proc_id
     mastertask = iam == 0
     if (mastertask) then
-       write(stdout,*)'mesh file for mpaso domain is ',trim(cvalue)
+       write(ocnLogUnit,*)'mesh file for mpaso domain is ',trim(cvalue)
     end if
 
     !-----------------------------------------------------------------
@@ -1012,7 +1011,7 @@ contains
     !--------------------------------
 
     call shr_file_getLogUnit (shrlogunit)
-    call shr_file_setLogUnit (stdout)
+    call shr_file_setLogUnit (ocnLogUnit)
 
     !-----------------------------------------------------------------------
     ! register non-standard incoming fields
@@ -1832,9 +1831,9 @@ contains
     if (dbug > 5) call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
 
     if (my_task == 0) then
-       write(stdout,F91)
-       write(stdout,F00) 'MPASO: end of main integration loop'
-       write(stdout,F91)
+       write(ocnLogUnit,F91)
+       write(ocnLogUnit,F00) 'MPASO: end of main integration loop'
+       write(ocnLogUnit,F91)
     end if
 
     if (dbug > 5) call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
