@@ -638,6 +638,7 @@ add_default($nl, 'config_AM_globalStats_write_on_startup');
 add_default($nl, 'config_AM_globalStats_text_file');
 add_default($nl, 'config_AM_globalStats_directory');
 add_default($nl, 'config_AM_globalStats_output_stream');
+add_default($nl, 'config_AM_globalStats_backward_output_offset');
 
 ##################################################
 # Namelist group: AM_surfaceAreaWeightedAverages #
@@ -718,6 +719,7 @@ add_default($nl, 'config_AM_meridionalHeatTransport_num_bins');
 add_default($nl, 'config_AM_meridionalHeatTransport_min_bin');
 add_default($nl, 'config_AM_meridionalHeatTransport_max_bin');
 add_default($nl, 'config_AM_meridionalHeatTransport_region_group');
+add_default($nl, 'config_AM_meridionalHeatTransport_backward_output_offset');
 
 ##########################################
 # Namelist group: AM_testComputeInterval #
@@ -1069,6 +1071,7 @@ add_default($nl, 'config_AM_eddyProductVariables_compute_interval');
 add_default($nl, 'config_AM_eddyProductVariables_output_stream');
 add_default($nl, 'config_AM_eddyProductVariables_compute_on_startup');
 add_default($nl, 'config_AM_eddyProductVariables_write_on_startup');
+add_default($nl, 'config_AM_eddyProductVariables_backward_output_offset');
 
 ########################################
 # Namelist group: AM_mocStreamfunction #
@@ -1084,6 +1087,7 @@ add_default($nl, 'config_AM_mocStreamfunction_max_bin');
 add_default($nl, 'config_AM_mocStreamfunction_num_bins');
 add_default($nl, 'config_AM_mocStreamfunction_region_group');
 add_default($nl, 'config_AM_mocStreamfunction_transect_group');
+add_default($nl, 'config_AM_mocStreamfunction_backward_output_offset');
 
 #######################################
 # Namelist group: AM_oceanHeatContent #
@@ -1094,6 +1098,7 @@ add_default($nl, 'config_AM_oceanHeatContent_compute_interval');
 add_default($nl, 'config_AM_oceanHeatContent_output_stream');
 add_default($nl, 'config_AM_oceanHeatContent_compute_on_startup');
 add_default($nl, 'config_AM_oceanHeatContent_write_on_startup');
+add_default($nl, 'config_AM_oceanHeatContent_backward_output_offset');
 
 ###########################################
 # Namelist group: AM_mixedLayerHeatBudget #

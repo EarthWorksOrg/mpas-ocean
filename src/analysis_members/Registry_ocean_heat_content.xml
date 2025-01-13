@@ -19,6 +19,10 @@
 			description="Logical flag determining if an analysis member write occurs on start-up."
 			possible_values=".true. or .false."
 		/>
+                <nml_option name="config_AM_oceanHeatContent_backward_output_offset" type="character" default_value="00-00-01_00:00:00"
+                        description="Backward offset for filename timestamps when writing the output stream"
+                        possible_values="A time interval in YYYY-MM-DD_hh:mm:ss."
+                />
 	</nml_record>
 	<packages>
 		<package name="oceanHeatContentAMPKG" description="This package includes variables required for the temPlate analysis member."/>
