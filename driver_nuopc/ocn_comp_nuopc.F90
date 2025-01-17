@@ -1442,7 +1442,7 @@ contains
 
       ! Import state from coupler
        call ocn_import(importState, flds_scalar_name, domain_ptr,  &
-                       errorCode, rc)
+                       errorCode, rc, do_sw_chk=.true. )
 
       ! Ensures MPAS AM write/compute startup steps are performed
       call ocn_analysis_compute_startup(domain_ptr, ierr)

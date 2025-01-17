@@ -364,7 +364,7 @@ contains
 
   !==============================================================================
   subroutine ocn_import( importState, flds_scalar_name, domain,    &
-                         errorCode, rc )
+                         errorCode, rc, do_sw_chk )
 
     !-----------------------------------------------------------------------
     ! swnet  -- net short-wave heat flux                 (W/m2   )
@@ -377,6 +377,7 @@ contains
     type (domain_type), pointer, intent(in) :: domain
     integer            , intent(out) :: errorCode
     integer            , intent(out) :: rc
+    logical,   optional, intent(in)  :: do_sw_chk
 
     ! local variables
     character (cl) :: label,  message
@@ -427,9 +428,9 @@ contains
     character (cl) :: fldname
     type(ESMF_StateItem_Flag) :: itemflag
 !?#ifdef _HIRES
-!?    real (r8)            :: qsw_eps = -1.e-3_r8
+    real (r8)            :: qsw_eps = -1.e-3_r8
 !?#else
-    real (r8)            :: qsw_eps = 0._r8
+!?    real (r8)            :: qsw_eps = 0._r8
 !?#endif
 
     ! local variables - mpas names
@@ -699,13 +700,17 @@ contains
           seaIcePressure(iCell)       = Si_bpress (gcell) * med2mod_areacor(gcell)
        end do
 
-       if (ANY(shortWaveHeatFlux < qsw_eps)) then
-         do iCell = 1, nCells
-           gcell = iCell + cell_offset
-           write(stdout,*)'ERROR: gcell,shortWaveHeatFlux = ',&
-                      gcell,shortWaveHeatFlux(icell)
-         enddo
-         call shr_sys_abort('(set_surface_forcing) ERROR: SHF_QSW < qsw_eps in set_surface_forcing')
+       if(present(do_sw_chk)) then
+         if(do_sw_chk) then
+           if (ANY(shortWaveHeatFlux < qsw_eps)) then
+             do iCell = 1, nCells
+               gcell = iCell + cell_offset
+               write(stdout,*)'ERROR: gcell,shortWaveHeatFlux = ',&
+                          gcell,shortWaveHeatFlux(icell)
+             enddo
+             call shr_sys_abort('(set_surface_forcing) ERROR: SHF_QSW < qsw_eps in set_surface_forcing')
+           endif
+         endif
        endif
        
        ! for wave - uncomment later
