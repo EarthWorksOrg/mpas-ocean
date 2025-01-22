@@ -428,7 +428,7 @@ contains
     character (cl) :: fldname
     type(ESMF_StateItem_Flag) :: itemflag
 !?#ifdef _HIRES
-    real (r8)            :: qsw_eps = -1.e-3_r8
+    real (rkind)            :: qsw_eps = -1.e-3_rkind
 !?#else
 !?    real (r8)            :: qsw_eps = 0._r8
 !?#endif
@@ -702,14 +702,22 @@ contains
 
        if(present(do_sw_chk)) then
          if(do_sw_chk) then
-           if (ANY(shortWaveHeatFlux < qsw_eps)) then
-             do iCell = 1, nCells
+           !if (ANY(shortWaveHeatFlux(1:ncells) < qsw_eps)) then
+           !  do iCell = 1, nCells
+           !    gcell = iCell + cell_offset
+           !    write(stdout,*)'ERROR: gcell,shortWaveHeatFlux = ',&
+           !               gcell,shortWaveHeatFlux(icell)
+           !  enddo
+           !  call shr_sys_abort('(set_surface_forcing) ERROR: SHF_QSW < qsw_eps in set_surface_forcing')
+           !endif
+           do iCell = 1, nCells
+             if (shortWaveHeatFlux(icell) < qsw_eps) then
                gcell = iCell + cell_offset
                write(stdout,*)'ERROR: gcell,shortWaveHeatFlux = ',&
                           gcell,shortWaveHeatFlux(icell)
-             enddo
-             call shr_sys_abort('(set_surface_forcing) ERROR: SHF_QSW < qsw_eps in set_surface_forcing')
-           endif
+               call shr_sys_abort('(set_surface_forcing) ERROR: SHF_QSW < qsw_eps in set_surface_forcing')
+             endif
+           enddo
          endif
        endif
        
@@ -891,6 +899,7 @@ contains
     !-----------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
+    errorcode = ESMF_SUCCESS
 
     if (dbug > 5) call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
 
