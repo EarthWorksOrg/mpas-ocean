@@ -3324,6 +3324,14 @@ Valid values: Any existing stream, or 'none'
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_AM_globalStats_backward_output_offset" type="char*1024"
+	category="AM_globalStats" group="AM_globalStats">
+Backward offset for filename timestamps when writing the output stream
+
+Valid values: A time interval in YYYY-MM-DD_hh:mm:ss.
+Default: Defined in namelist_defaults.xml
+</entry>
+
 
 <!-- AM_surfaceAreaWeightedAverages -->
 
@@ -3739,6 +3747,14 @@ Default: Defined in namelist_defaults.xml
 The name of the region group, for which the MHT should be computed in addition to the global MHT.
 
 Valid values: 'all', '', or the name of a region group.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_meridionalHeatTransport_backward_output_offset" type="char*1024"
+        category="AM_meridionalHeatTransport" group="AM_meridionalHeatTransport">
+Backward offset for filename timestamps when writing the output stream
+
+Valid values: A time interval in YYYY-MM-DD_hh:mm:ss.
 Default: Defined in namelist_defaults.xml
 </entry>
 
@@ -5773,6 +5789,14 @@ Valid values: .true. or .false.
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_AM_eddyProductVariables_backward_output_offset" type="char*1024"
+        category="AM_eddyProductVariables" group="AM_eddyProductVariables">
+Backward offset for filename timestamps when writing the output stream
+
+Valid values: A time interval in YYYY-MM-DD_hh:mm:ss.
+Default: Defined in namelist_defaults.xml
+</entry>
+
 
 <!-- AM_mocStreamfunction -->
 
@@ -5856,6 +5880,14 @@ Valid values: Any valid transect group name.
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_AM_mocStreamfunction_backward_output_offset" type="char*1024"
+        category="AM_mocStreamfunction" group="AM_mocStreamfunction">
+Backward offset for filename timestamps when writing the output stream
+
+Valid values: A time interval in YYYY-MM-DD_hh:mm:ss.
+Default: Defined in namelist_defaults.xml
+</entry>
+
 
 <!-- AM_oceanHeatContent -->
 
@@ -5896,6 +5928,14 @@ Default: Defined in namelist_defaults.xml
 Logical flag determining if an analysis member write occurs on start-up.
 
 Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_AM_oceanHeatContent_backward_output_offset" type="char*1024"
+        category="AM_oceanHeatContent" group="AM_oceanHeatContent">
+Backward offset for filename timestamps when writing the output stream
+
+Valid values: A time interval in YYYY-MM-DD_hh:mm:ss.
 Default: Defined in namelist_defaults.xml
 </entry>
 

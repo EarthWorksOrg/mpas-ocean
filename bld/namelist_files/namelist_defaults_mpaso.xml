@@ -662,6 +662,7 @@
 <config_AM_globalStats_text_file>.false.</config_AM_globalStats_text_file>
 <config_AM_globalStats_directory>'analysis_members'</config_AM_globalStats_directory>
 <config_AM_globalStats_output_stream>'globalStatsOutput'</config_AM_globalStats_output_stream>
+<config_AM_globalStats_backward_output_offset>'00-00-01_00:00:00'</config_AM_globalStats_backward_output_offset>
 
 <!-- AM_surfaceAreaWeightedAverages -->
 <config_AM_surfaceAreaWeightedAverages_enable>.true.</config_AM_surfaceAreaWeightedAverages_enable>
@@ -724,6 +725,7 @@
 <config_AM_meridionalHeatTransport_min_bin>-1.0e34</config_AM_meridionalHeatTransport_min_bin>
 <config_AM_meridionalHeatTransport_max_bin>-1.0e34</config_AM_meridionalHeatTransport_max_bin>
 <config_AM_meridionalHeatTransport_region_group>''</config_AM_meridionalHeatTransport_region_group>
+<config_AM_meridionalHeatTransport_backward_output_offset>'00-00-01_00:00:00'</config_AM_meridionalHeatTransport_backward_output_offset>
 
 <!-- AM_testComputeInterval -->
 <config_AM_testComputeInterval_enable>.false.</config_AM_testComputeInterval_enable>
@@ -1012,6 +1014,7 @@
 <config_AM_eddyProductVariables_output_stream>'eddyProductVariablesOutput'</config_AM_eddyProductVariables_output_stream>
 <config_AM_eddyProductVariables_compute_on_startup>.true.</config_AM_eddyProductVariables_compute_on_startup>
 <config_AM_eddyProductVariables_write_on_startup>.false.</config_AM_eddyProductVariables_write_on_startup>
+<config_AM_eddyProductVariables_backward_output_offset>'00-00-01_00:00:00'</config_AM_eddyProductVariables_backward_output_offset>
 
 <!-- AM_mocStreamfunction -->
 <config_AM_mocStreamfunction_enable ocn_grid="oQU480">.false.</config_AM_mocStreamfunction_enable>
@@ -1046,6 +1049,7 @@
 <config_AM_mocStreamfunction_num_bins>180</config_AM_mocStreamfunction_num_bins>
 <config_AM_mocStreamfunction_region_group>'all'</config_AM_mocStreamfunction_region_group>
 <config_AM_mocStreamfunction_transect_group>'all'</config_AM_mocStreamfunction_transect_group>
+<config_AM_mocStreamfunction_backward_output_offset>'00-00-01_00:00:00'</config_AM_mocStreamfunction_backward_output_offset>
 
 <!-- AM_oceanHeatContent -->
 <config_AM_oceanHeatContent_enable>.true.</config_AM_oceanHeatContent_enable>
@@ -1053,6 +1057,7 @@
 <config_AM_oceanHeatContent_output_stream>'oceanHeatContentOutput'</config_AM_oceanHeatContent_output_stream>
 <config_AM_oceanHeatContent_compute_on_startup>.true.</config_AM_oceanHeatContent_compute_on_startup>
 <config_AM_oceanHeatContent_write_on_startup>.false.</config_AM_oceanHeatContent_write_on_startup>
+<config_AM_oceanHeatContent_backward_output_offset>'00-00-01_00:00:00'</config_AM_oceanHeatContent_backward_output_offset>
 
 <!-- AM_mixedLayerHeatBudget -->
 <config_AM_mixedLayerHeatBudget_enable>.true.</config_AM_mixedLayerHeatBudget_enable>

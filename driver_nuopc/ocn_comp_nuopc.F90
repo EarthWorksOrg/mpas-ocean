@@ -1002,9 +1002,16 @@ contains
     integer                   :: shrlogunit      ! old values
     integer                   :: ocnid
     character(len=*), parameter  :: subname = "ocn_comp_nuopc:(DataInitialize)"
+
+    type (block_type), pointer :: block_ptr
+    type (mpas_pool_type), pointer :: statePool, &
+                                      forcingPool
+    integer :: ierr
+
     !-----------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
+    errorCode = ESMF_SUCCESS
 
     !--------------------------------
     ! Reset shr logging to my log file
@@ -1229,6 +1236,67 @@ contains
     !?   call document ('DataInitialize', 'orb_obliqr  ',  orb_obliqr)
     !?endif
 
+!!!!!get this section from ocn_comp_mct afer the first ocn_export_mct
+    if (errorCode /= 0) then
+       call mpas_log_write('ERROR in ocn_export', MPAS_LOG_CRIT)
+    endif
+
+    ! Setup clock for initial runs
+    if (runtype == "continue" .or. runtype == "branch" ) then
+       block_ptr => domain_ptr % blocklist
+       do while(associated(block_ptr))
+          call mpas_pool_get_subpool(block_ptr % structs, 'state', statePool)
+          call mpas_pool_get_subpool(block_ptr % structs, 'forcing', forcingPool)
+
+          call ocn_time_average_coupled_init(forcingPool)
+          call ocn_time_average_coupled_accumulate(statePool, forcingPool, 1)
+          block_ptr => block_ptr % next
+       end do
+    end if
+
+
+    !call mpas_pool_get_config(domain_ptr % configs, 'config_land_ice_flux_mode', config_land_ice_flux_mode)
+    !if ( trim(config_land_ice_flux_mode) .eq. 'pressure_only' ) then
+    !   call seq_infodata_PutData( infodata, ocn_prognostic=.true., ocnrof_prognostic=.true., &
+    !                                        ocn_c2_glcshelf=.false.)
+    !else if ( trim(config_land_ice_flux_mode) .eq. 'standalone' ) then
+    !   call seq_infodata_PutData( infodata, ocn_prognostic=.true., ocnrof_prognostic=.true., &
+    !                                        ocn_c2_glcshelf=.false.)
+    !else if ( trim(config_land_ice_flux_mode) .eq. 'coupled' ) then
+    !   call seq_infodata_PutData( infodata, ocn_prognostic=.true., ocnrof_prognostic=.true., &
+    !                                        ocn_c2_glcshelf=.true.)
+    !else
+    !   call mpas_log_write('ERROR: unknown land_ice_flux_mode: ' // trim(config_land_ice_flux_mode), MPAS_LOG_CRIT)
+    !end if
+
+!-----------------------------------------------------------------------
+!
+!   get initial state from driver
+!
+!-----------------------------------------------------------------------
+
+    !timeStep = mpas_get_clock_timestep(domain_ptr % clock, ierr=ierr)
+    call ESMF_ClockGet(clock, timeStep=timeStep, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    !call mpas_get_timeInterval(timeStep, dt=dt)
+    call ESMF_TimeIntervalGet( timeStep, s=ocn_cpl_dt, rc=rc )
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    call ocn_import(importState, flds_scalar_name, domain_ptr,  &
+                       errorCode, rc)
+    if (errorCode /= 0) then
+       call mpas_log_write('Error in ocn_import', MPAS_LOG_CRIT)
+    endif
+
+    itimestep = 0
+
+    ! Reset all output alarms, to prevent intial time step from writing any output, unless it's ringing.
+    call mpas_stream_mgr_reset_alarms(domain_ptr % streamManager, direction=MPAS_STREAM_OUTPUT, ierr=ierr)
+    call mpas_stream_mgr_reset_alarms(domain_ptr % streamManager, direction=MPAS_STREAM_INPUT, ierr=ierr)
+
+
+!!!!!end section from ocn_comp_mct
+
     !-----------------------------------------------------------------------
     ! check whether all Fields in the exportState are "Updated"
     !-----------------------------------------------------------------------
@@ -1374,7 +1442,8 @@ contains
 
       ! Import state from coupler
        call ocn_import(importState, flds_scalar_name, domain_ptr,  &
-                       errorCode, rc)
+                       errorCode, rc, do_sw_chk=.true. )
+
       ! Ensures MPAS AM write/compute startup steps are performed
       call ocn_analysis_compute_startup(domain_ptr, ierr)
 
