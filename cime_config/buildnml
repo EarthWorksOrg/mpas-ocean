@@ -166,6 +166,7 @@ def buildnml(case, caseroot, compname):
     elif ocn_grid == 'oQU030':
         decomp_date = '230907'
         decomp_prefix = 'mpas-o.graph.info.QU030.'
+        analysis_mask_file = 'QU30_mocBasinsAndTransects20230907.nc'
         ic_date = '230907'
         ic_prefix = 'ocean.QU.030km'
         if ocn_ic_mode == 'spunup':
@@ -175,6 +176,7 @@ def buildnml(case, caseroot, compname):
     elif ocn_grid == 'oQU015':
         decomp_date = '241221'
         decomp_prefix = 'mpas-o.graph.info.QU015.'
+        analysis_mask_file = 'QU15_mocBasinsAndTransects20241221.nc'
         ic_date = '241221'
         ic_prefix = 'ocean.QU.015km'
         if ocn_ic_mode == 'spunup':
@@ -184,6 +186,7 @@ def buildnml(case, caseroot, compname):
     elif ocn_grid == 'oQU0075':
         decomp_date = '241221'
         decomp_prefix = 'mpas-o.graph.info.QU0075.'
+        analysis_mask_file = 'QU75_mocBasinsAndTransects20241221.nc'
         ic_date = '241221'
         ic_prefix = 'ocean.QU.0075km'
         if ocn_ic_mode == 'spunup':
@@ -193,6 +196,7 @@ def buildnml(case, caseroot, compname):
     elif ocn_grid == 'oQU00375':
         decomp_date = '241221'
         decomp_prefix = 'mpas-o.graph.info.QU00375.'
+        analysis_mask_file = 'QU375_mocBasinsAndTransects20241221.nc'
         ic_date = '241221'
         ic_prefix = 'ocean.QU.00375km'
         if ocn_ic_mode == 'spunup':
