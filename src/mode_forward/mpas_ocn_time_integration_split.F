@@ -408,7 +408,7 @@ module ocn_time_integration_split
 
 #ifdef MPAS_OPENACC
       !$acc enter data copyin(normalVelocityCur, normalBarotropicVelocityCur, &
-      !$acc   sshCur, layerThicknessCur)
+      !$acc   sshCur, layerThicknessCur, sshSubcycleCur, sshSubcycleNew)
       !$acc enter data create(normalBaroClinicVelocityCur, normalVelocityNew, &
       !$acc   normalBaroclinicVelocityNew, sshNew, layerThicknessNew)
       if (associated(highFreqThicknessNew)) then
