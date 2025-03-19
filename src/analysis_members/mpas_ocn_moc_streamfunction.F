@@ -604,6 +604,7 @@ contains
                  c1 = cellsOnEdge(1,iEdge)
                  c2 = cellsOnEdge(2,iEdge)
                  do k = 1, maxLevelEdgeTop(iEdge)
+if(abs(normalGMBolusVelocity(k,iEdge)) < 1.e35) &
                     sumTransport(k,iTransect) = sumTransport(k,iTransect) + &
                        transectEdgeMaskSigns(currentTransect,iEdge) &
                        * transectEdgeMasks(currentTransect, iEdge) &
@@ -630,10 +631,12 @@ contains
               do k = 1,maxLevelCell(iCell)
                  do i = 1, regionsInAddGroup
                     currentRegion = regionsInGroup(i, regionGroupNumber)
+if(abs(vertGMBolusVelocitytop(k,icell)) < 1.e35) &
                     sumVertBinVelocityRegion(iBin, k, i) = sumVertBinVelocityRegion(iBin, k, i) + &
                           (vertGMBolusVelocityTop(k, iCell) * &
                           areaCell(iCell) * regionCellMasks(currentRegion, iCell))
                  end do
+if(abs(vertGMBolusVelocitytop(k,icell)) < 1.e35) &
                  sumVertBinVelocity(iBin, k) = sumVertBinVelocity(iBin, k) + &
                           (vertGMBolusVelocityTop(k, iCell) * areaCell(iCell))
               end do
@@ -715,6 +718,7 @@ contains
                  c1 = cellsOnEdge(1,iEdge)
                  c2 = cellsOnEdge(2,iEdge)
                  do k = 1, maxLevelEdgeTop(iEdge)
+if(abs(normalMLEvelocity(k,iedge) < 1.e35)) &
                     sumTransport(k,iTransect) = sumTransport(k,iTransect) + &
                        transectEdgeMaskSigns(currentTransect,iEdge) &
                        * transectEdgeMasks(currentTransect, iEdge) &
@@ -741,10 +745,12 @@ contains
               do k = 1,maxLevelCell(iCell)
                  do i = 1, regionsInAddGroup
                     currentRegion = regionsInGroup(i, regionGroupNumber)
+if(abs(vertMLEBolusVelocityTop(k,icell)) < 1.e35) &
                     sumVertBinVelocityRegion(iBin, k, i) = sumVertBinVelocityRegion(iBin, k, i) + &
                           (vertMLEBolusVelocityTop(k,iCell) * &
                           areaCell(iCell) * regionCellMasks(currentRegion, iCell))
                  end do
+if(abs(vertMLEBolusVelocityTop(k,icell)) < 1.e35) &
                  sumVertBinVelocity(iBin, k) = sumVertBinVelocity(iBin, k) + &
                           (vertMLEBolusVelocityTop(k,iCell) * areaCell(iCell))
               end do
