@@ -163,6 +163,9 @@
 <config_use_Redi ocn_grid="oRRS30to10v3wLI">.false.</config_use_Redi>
 <config_use_Redi ocn_grid="oRRS18to6v3">.false.</config_use_Redi>
 <config_use_Redi ocn_grid="oRRS15to5">.false.</config_use_Redi>
+<config_use_Redi ocn_grid="oQU015">.false.</config_use_Redi>
+<config_use_Redi ocn_grid="oQU0075">.false.</config_use_Redi>
+<config_use_Redi ocn_grid="oQU00375">.false.</config_use_Redi>
 <config_Redi_closure>'constant'</config_Redi_closure>
 <config_Redi_constant_kappa>400.0</config_Redi_constant_kappa>
 <config_Redi_constant_kappa ocn_forcing="datm_forced_restoring">400.0</config_Redi_constant_kappa>
@@ -195,6 +198,9 @@
 <config_use_GM ocn_grid="oRRS30to10v3wLI">.false.</config_use_GM>
 <config_use_GM ocn_grid="oRRS18to6v3">.false.</config_use_GM>
 <config_use_GM ocn_grid="oRRS15to5">.false.</config_use_GM>
+<config_use_GM ocn_grid="oQU015">.false.</config_use_GM>
+<config_use_GM ocn_grid="oQU0075">.false.</config_use_GM>
+<config_use_GM ocn_grid="oQU00375">.false.</config_use_GM>
 <config_GM_closure>'EdenGreatbatch'</config_GM_closure>
 <config_GM_closure ocn_grid="EC30to60E2r2">'constant'</config_GM_closure>
 <config_GM_closure ocn_grid="WC14to60E2r3">'constant'</config_GM_closure>
