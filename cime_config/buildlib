@@ -126,7 +126,7 @@ def _copy_files_to_blddir(case):
         for filename in filenames:
             filename1 = filename.replace(glob_dir, '', 1)
             ofilename = filename1.replace('/', '', 1)
-            cmd = "sed -e '1,$s/MPASAOS/mpaso/' {} > {}/{}".format(filename, dest_dir, ofilename)
+            cmd = "sed -e '1,$s/MPASAOS/mpaso/g' {} > {}/{}".format(filename, dest_dir, ofilename)
             rc, out, err = run_cmd(cmd)
             expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
     glob_dirs = [os.path.join(srcroot, "components/mpas-framework", "src", "tools", "registry-sed")]
@@ -235,6 +235,8 @@ def _build_mpaso():
         gmake_j = case.get_value("GMAKE_J")
         gmake = case.get_value("GMAKE")
         caseroot = case.get_value("CASEROOT")
+        ocn_forcing       = case.get_value("MPASO_FORCING")
+
         # copy all F90 files to $OBJROOT/ocn/source
         _copy_files_to_blddir(case)
 
@@ -284,8 +286,17 @@ def _build_mpaso():
         # build the library
         makefile = os.path.join(casetools, "Makefile")
         complib = os.path.join(libroot, "libocn.a")
-        cmd = "{} complib -j {} MODEL=mpaso COMPLIB={} -f {} USER_CPPDEFS=\"-DMPAS_OPENACC -DUSE_PIO2 -DMPAS_PIO_SUPPORT -D_MPI -DEXCLUDE_INIT_MODE -DMPAS_NO_ESMF_INIT -DMPAS_EXTERNAL_ESMF_LIB -DMPAS_PERF_MOD_TIMERS -DUSE_LAPACK -DMPAS_NAMELIST_SUFFIX=ocean \" FIXEDFLAGS={} {}" \
-            .format(gmake, gmake_j, complib, makefile, fixedflags, get_standard_makefile_args(case))
+
+        user_cppdefs = '\"-DUSE_PIO2 -DMPAS_PIO_SUPPORT -D_MPI -DEXCLUDE_INIT_MODE -DMPAS_NO_ESMF_INIT -DMPAS_EXTERNAL_ESMF_LIB -DMPAS_PERF_MOD_TIMERS -DUSE_LAPACK -DMPAS_OPENACC'
+        if ocn_forcing == 'datm_forced_restoring':
+            user_cppdefs += ' -DDATMFORCEDRESTORING'
+        user_cppdefs += ' -DMPAS_NAMELIST_SUFFIX=ocean\"'
+
+        cmd = "{} complib -j {} MODEL=mpaso COMPLIB={} -f {} USER_CPPDEFS={} FIXEDFLAGS={} {}" \
+            .format(gmake, gmake_j, complib, makefile, user_cppdefs, fixedflags, get_standard_makefile_args(case))
+
+#        cmd = "{} complib -j {} MODEL=mpaso COMPLIB={} -f {} USER_CPPDEFS=\"-DMPAS_OPENACC -DUSE_PIO2 -DMPAS_PIO_SUPPORT -D_MPI -DEXCLUDE_INIT_MODE -DMPAS_NO_ESMF_INIT -DMPAS_EXTERNAL_ESMF_LIB -DMPAS_PERF_MOD_TIMERS -DUSE_LAPACK -DMPAS_NAMELIST_SUFFIX=ocean \" FIXEDFLAGS={} {}" \
+#            .format(gmake, gmake_j, complib, makefile, fixedflags, get_standard_makefile_args(case))
 
         rc, out, err = run_cmd(cmd, from_dir=os.path.join(objroot, "ocn", "obj"))
         expect(rc == 0, "Command %s failed rc=%d\nout=%s\nerr=%s" % (cmd, rc, out, err))
