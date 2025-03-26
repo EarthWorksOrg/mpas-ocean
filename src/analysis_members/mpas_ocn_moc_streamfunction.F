@@ -718,7 +718,7 @@ contains
                  c1 = cellsOnEdge(1,iEdge)
                  c2 = cellsOnEdge(2,iEdge)
                  do k = 1, maxLevelEdgeTop(iEdge)
-                    if(abs(normalMLEvelocity(k,iedge) < 1.e35)) &
+                    if(abs(normalMLEvelocity(k,iedge)) < 1.e35) &
                        sumTransport(k,iTransect) = sumTransport(k,iTransect) + &
                           transectEdgeMaskSigns(currentTransect,iEdge) &
                           * transectEdgeMasks(currentTransect, iEdge) &
