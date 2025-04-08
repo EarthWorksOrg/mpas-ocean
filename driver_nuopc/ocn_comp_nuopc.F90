@@ -710,7 +710,6 @@ contains
     call ESMF_TimeGet(Ecurrtime, s_i8=s_e, sn_i8=sn_e, sd_i8=sd_e, yy=yy_e, calendar = ecalendar, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-#ifdef DATMFORCEDRESTORING
     currtime%t%basetime%S  = s_e
     currtime%t%basetime%Sn = sn_e
     currtime%t%basetime%Sd = sd_e
@@ -727,13 +726,6 @@ contains
        rc = 1
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     endif
-
-#else
-    currtime%t = Ecurrtime
-
-    call ESMF_CalendarGet(Ecalendar, calkindflag=type_e, rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-#endif
 
     if (runtype == 'initial') then
        call mpas_set_clock_time(domain_ptr % clock, currTime, MPAS_START_TIME, ierr)

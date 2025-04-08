@@ -289,8 +289,6 @@ def _build_mpaso():
         complib = os.path.join(libroot, "libocn.a")
 
         user_cppdefs = '\"-DUSE_PIO2 -DMPAS_PIO_SUPPORT -D_MPI -DEXCLUDE_INIT_MODE -DMPAS_NO_ESMF_INIT -DMPAS_EXTERNAL_ESMF_LIB -DMPAS_PERF_MOD_TIMERS -DUSE_LAPACK'
-        if ocn_forcing == 'datm_forced_restoring':
-            user_cppdefs += ' -DDATMFORCEDRESTORING'
         if gpu_type != 'none':
             user_cppdefs += ' -DMPAS_OPENACC'
         user_cppdefs += ' -DMPAS_NAMELIST_SUFFIX=ocean\"'
