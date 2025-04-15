@@ -370,15 +370,15 @@ contains
       real (kind=RKIND), dimension(:,:), pointer :: avgSSHGradient
 
       interface
-         subroutine xml_stream_parser(xmlname, mgr_p, comm, ierr) bind(c)
+         subroutine mpaso_xml_stream_parser(xmlname, mgr_p, comm, ierr) bind(c)
             use iso_c_binding, only : c_char, c_ptr, c_int
             character(kind=c_char), dimension(*), intent(in) :: xmlname
             type (c_ptr), intent(inout) :: mgr_p
             integer(kind=c_int), intent(inout) :: comm
             integer(kind=c_int), intent(out) :: ierr
-         end subroutine xml_stream_parser
+         end subroutine mpaso_xml_stream_parser
 
-         subroutine xml_stream_get_attributes(xmlname, streamname, comm, filename, ref_time, filename_interval, io_type, ierr) bind(c)
+         subroutine mpaso_xml_stream_get_attributes(xmlname, streamname, comm, filename, ref_time, filename_interval, io_type, ierr) bind(c)
             use iso_c_binding, only : c_char, c_int
             character(kind=c_char), dimension(*), intent(in) :: xmlname
             character(kind=c_char), dimension(*), intent(in) :: streamname
@@ -388,7 +388,7 @@ contains
             character(kind=c_char), dimension(*), intent(out) :: filename_interval
             character(kind=c_char), dimension(*), intent(out) :: io_type
             integer(kind=c_int), intent(out) :: ierr
-         end subroutine xml_stream_get_attributes
+         end subroutine mpaso_xml_stream_get_attributes
       end interface
 
     !-----------------------------------------------------------------------
@@ -615,7 +615,7 @@ contains
     call mpas_f_to_c_string(domain_ptr % streams_filename, c_filename)
     call mpas_f_to_c_string(mesh_stream, c_mesh_stream)
     c_comm = domain_ptr % dminfo % comm
-    call xml_stream_get_attributes(c_filename, c_mesh_stream, c_comm, &
+    call mpaso_xml_stream_get_attributes(c_filename, c_mesh_stream, c_comm, &
                                    c_mesh_filename_temp, c_ref_time_temp, &
                                    c_filename_interval_temp, c_iotype, c_ierr)
     if (c_ierr /= 0) then
@@ -671,7 +671,7 @@ contains
 
     ! Parse / read all streams configuration
     mgr_p = c_loc(domain_ptr % streamManager)
-    call xml_stream_parser(c_filename, mgr_p, c_comm, c_ierr)
+    call mpaso_xml_stream_parser(c_filename, mgr_p, c_comm, c_ierr)
     if (c_ierr /= 0) then
        call mpas_log_write('xml_stream_parser failed.', MPAS_LOG_CRIT)
     end if
@@ -709,23 +709,23 @@ contains
 !    !DD there hase to be a better way to go from esmf type to MPAS_Time_Type
     call ESMF_TimeGet(Ecurrtime, s_i8=s_e, sn_i8=sn_e, sd_i8=sd_e, yy=yy_e, calendar = ecalendar, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-!    currtime%t%basetime%S  = s_e
-!    currtime%t%basetime%Sn = sn_e
-!    currtime%t%basetime%Sd = sd_e
-!    currtime%t%yr = yy_e
-    currtime%t = Ecurrtime
+
+    currtime%t%basetime%S  = s_e
+    currtime%t%basetime%Sn = sn_e
+    currtime%t%basetime%Sd = sd_e
+    currtime%t%yr = yy_e
 
     call ESMF_CalendarGet(Ecalendar, calkindflag=type_e, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-!    if(type_e == ESMF_CALKIND_NOLEAP) then
-!       currTime%t%calendar => noleapCal
-!    elseif(type_e == ESMF_CALKIND_GREGORIAN) then
-!       currTime%t%calendar => gregorianCal
-!    else
-!       rc = 1
-!       if (ChkErr(rc,__LINE__,u_FILE_u)) return
-!    endif
+    if(type_e == ESMF_CALKIND_NOLEAP) then
+       currTime%t%calendar => noleapCal
+    elseif(type_e == ESMF_CALKIND_GREGORIAN) then
+       currTime%t%calendar => gregorianCal
+    else
+       rc = 1
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    endif
 
     if (runtype == 'initial') then
        call mpas_set_clock_time(domain_ptr % clock, currTime, MPAS_START_TIME, ierr)

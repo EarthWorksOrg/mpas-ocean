@@ -485,7 +485,7 @@ module ocn_time_integration_si
 
 #ifdef MPAS_OPENACC
       !$acc enter data copyin(normalVelocityCur, normalBarotropicVelocityCur, &
-      !$acc   sshCur, layerThicknessCur)
+      !$acc   sshCur, layerThicknessCur, sshSubcycleCur, sshSubcycleNew)
       !$acc enter data create(normalBaroClinicVelocityCur, normalVelocityNew, &
       !$acc   normalBaroclinicVelocityNew, sshNew, layerThicknessNew)
       if (associated(highFreqThicknessNew)) then
@@ -608,15 +608,19 @@ module ocn_time_integration_si
       end do
 
       if(config_enable_nonhydrostatic_mode) then
+#ifndef MPAS_OPENACC
          !$omp parallel
          !$omp do schedule(runtime) private(k)
+#endif
          do iCell=1,nCellsAll
             do k = 2, maxLevelCell(iCell)
                vertVelocityNonhydroNew(k,iCell) = vertVelocityNonhydroCur(k,iCell)
            end do
          end do
+#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
+#endif
       end if
 
       if (associated(highFreqThicknessNew)) then
@@ -853,10 +857,12 @@ module ocn_time_integration_si
 
             allocate(uTemp(nVertLevels,nEdgesOwned))
 
+#ifndef MPAS_OPENACC
             !$omp parallel
             !$omp do schedule(runtime) &
             !$omp private(k, cell1, cell2, uTemp, &
             !$omp         normalThicknessFluxSum, thicknessSum)
+#endif
             do iEdge = 1, nEdgesOwned
                cell1 = cellsOnEdge(1,iEdge)
                cell2 = cellsOnEdge(2,iEdge)
@@ -909,12 +915,14 @@ module ocn_time_integration_si
                enddo
 
             enddo ! iEdge
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
 
             !$omp parallel
             !$omp do schedule(runtime) &
             !$omp private(cell1, cell2, k, thicknessSum)
+#endif
             do iEdge = 1, nEdgesHalo(config_num_halos+1)
                cell1 = cellsOnEdge(1,iEdge)
                cell2 = cellsOnEdge(2,iEdge)
@@ -926,8 +934,10 @@ module ocn_time_integration_si
                bottomDepthEdge(iEdge) = thicknessSum &
                   - 0.5_RKIND*(sshNew(cell1) + sshNew(cell2))
             enddo ! iEdge
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
+#endif
 
             deallocate(uTemp)
 
@@ -1037,13 +1047,17 @@ module ocn_time_integration_si
          nEdges = nEdgesHalo(edgeHaloComputeCounter-1)
 
          if (config_filter_btr_mode) then
+#ifndef MPAS_OPENACC
             !$omp parallel
             !$omp do schedule(runtime)
+#endif
             do iEdge = 1, nEdges
                barotropicForcing(iEdge) = 0.0_RKIND
             end do
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
+#endif
          endif
 
 
@@ -1060,27 +1074,35 @@ module ocn_time_integration_si
                ! Here sshSubcycleNew and normalBarotropicVelocityCur
                ! are at time n+1/2.
    
+#ifndef MPAS_OPENACC
                !$omp parallel
                !$omp do schedule(runtime)
+#endif
                do iCell = 1,nCellsAll
                   sshSubcycleNew(iCell) = &
                      0.5_RKIND*( sshSubcycleNew(iCell) &
                                 +sshCur(iCell) )
                   sshSubcycleCur(iCell) = sshSubcycleNew(iCell)
                end do
+#ifndef MPAS_OPENACC
                !$omp end do
    
                !$omp do schedule(runtime)
+#endif
                do iEdge = 1,nEdgesAll
                   normalBarotropicVelocityCur(iEdge) = &
                      normalBarotropicVelocitySubcycleCur(iEdge)
                end do
+#ifndef MPAS_OPENACC
                !$omp end do
                !$omp end parallel
+#endif
             endif ! splitImplicitStep
    
+#ifndef MPAS_OPENACC
             !$omp parallel
             !$omp do schedule(runtime) private(CoriolisTerm, i, eoe)
+#endif
             do iEdge = 1, nEdgesAll
                ! Compute the barotropic Coriolis term, -f*uPerp
                CoriolisTerm = 0.d0
@@ -1092,8 +1114,10 @@ module ocn_time_integration_si
                end do ! i
                   barotropicCoriolisTerm(iEdge) = CoriolisTerm
             end do ! iEdge
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
+#endif
    
             ! Subtract tidal potential from ssh, if needed
             ! Subtract the tidal potential from the current
@@ -1110,8 +1134,10 @@ module ocn_time_integration_si
                                        'tidalPotentialEta', &
                                         tidalPotentialEta)
    
+#ifndef MPAS_OPENACC
                !$omp parallel
                !$omp do schedule(runtime)
+#endif
                do iCell = 1, nCellsAll
                  sshSubcycleCurWithTides(iCell) = sshSubcycleCur(iCell) &
                             - tidalPotentialEta(iCell)                  &
@@ -1120,20 +1146,26 @@ module ocn_time_integration_si
                             * config_self_attraction_and_loading_beta   &
                             * sshSubcycleCur(iCell)
                end do
+#ifndef MPAS_OPENACC
                !$omp end do
                !$omp end parallel
+#endif
    
                call mpas_pool_get_array(forcingPool,            &
                                      'sshSubcycleCurWithTides', &
                                       sshSubcycleNew)
    
+#ifndef MPAS_OPENACC
                !$omp parallel
                !$omp do schedule(runtime)
+#endif
                do iCell = 1,nCellsAll
                   sshSubcycleCur(iCell) = sshSubcycleNew(iCell)
                end do
+#ifndef MPAS_OPENACC
                !$omp end do
                !$omp end parallel
+#endif
    
             endif !config_use_tidal_potential_forcing
    
@@ -1146,11 +1178,13 @@ module ocn_time_integration_si
    
             call mpas_timer_start("si btr residual")
    
+#ifndef MPAS_OPENACC
             !$omp parallel
             !$omp do schedule(runtime) &
             !$omp private(sshTendb1,sshTendb2,sshTendAx,iEdge, &
             !$omp         cell1,cell2,sshEdgeCur,thicknessSumCur, &
             !$omp         sshDiffCur,fluxb1,fluxb2,fluxAx,sshCurArea)
+#endif
             do iCell = 1, nPrecVec
                sshTendb1 = 0.0_RKIND
                sshTendb2 = 0.0_RKIND
@@ -1201,8 +1235,10 @@ module ocn_time_integration_si
                SIvec_r00(iCell) = SIvec_r0(iCell)
    
             end do ! iCell
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
+#endif
    
             ! Preconditioning --------------------------------------------!
 
@@ -1313,18 +1349,22 @@ module ocn_time_integration_si
    
             call mpas_timer_start("si btr vel update")
 
+#ifndef MPAS_OPENACC
             !$omp parallel
             !$omp do schedule(runtime)
+#endif
             do iCell = 1,nCellsAll
                ! Use of sshNew to save the lagged SSH
                sshNew(iCell) = sshSubcycleNew(iCell)
             end do
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
    
             !$omp parallel
             !$omp do schedule(runtime) &
             !$omp private(temp_mask,cell1,cell2)
+#endif
             do iEdge = 1,nEdgesHalo( edgeHaloComputeCounter-1 )
                temp_mask = edgeMask(1, iEdge)
    
@@ -1345,11 +1385,13 @@ module ocn_time_integration_si
                           *normalBarotropicVelocityNew(iEdge)          &
                           /dcEdge(iEdge) - barotropicForcing(iEdge)))
             end do ! iEdge
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
    
             !$omp parallel
             !$omp do schedule(runtime) private(CoriolisTerm, i, eoe)
+#endif
             do iEdge = 1,nEdgesHalo(2)
                ! Compute the barotropic Coriolis term, -f*uPerp
                CoriolisTerm = 0.0_RKIND
@@ -1363,12 +1405,14 @@ module ocn_time_integration_si
                end do
                barotropicCoriolisTerm(iEdge) = CoriolisTerm
             end do
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
 
             !$omp parallel
             !$omp do schedule(runtime) &
             !$omp private(temp_mask,cell1,cell2)
+#endif
             do iEdge = 1,nEdgesHalo(2)
                temp_mask = edgeMask(1, iEdge)
    
@@ -1381,11 +1425,13 @@ module ocn_time_integration_si
                           *normalBarotropicVelocityNew(iEdge)        &
                           /dcEdge(iEdge) - barotropicForcing(iEdge)))
             end do ! iEdge
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
    
             !$omp parallel
             !$omp do schedule(runtime) private(CoriolisTerm, i, eoe)
+#endif
             do iEdge = 1,nEdgesOwned
                ! Compute the barotropic Coriolis term, -f*uPerp
                CoriolisTerm = 0.0_RKIND
@@ -1399,8 +1445,10 @@ module ocn_time_integration_si
                end do
                barotropicCoriolisTerm(iEdge) = CoriolisTerm
             end do
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
+#endif
    
             call mpas_timer_start("si halo btr coriolis")
             call mpas_dmpar_field_halo_exch(domain, 'barotropicCoriolisTerm')
@@ -1418,6 +1466,7 @@ module ocn_time_integration_si
    
             ! SpMV -------------------------------------------------------!
    
+#ifndef MPAS_OPENACC
             !$omp parallel
             !$omp do schedule(runtime) &
             !$omp private(sshTendb1,sshTendb2,sshTendAx,iEdge, &
@@ -1425,6 +1474,7 @@ module ocn_time_integration_si
             !$omp         thicknessSumCur,thicknessSumMid, &
             !$omp         thicknessSumLag,sshDiffCur,sshDiffLag, &
             !$omp         fluxb1,fluxb2,fluxAx,sshCurArea,sshLagArea)
+#endif
             do iCell = 1, nPrecVec
                sshTendb1 = 0.0_RKIND
                sshTendb2 = 0.0_RKIND
@@ -1486,8 +1536,10 @@ module ocn_time_integration_si
                                 -(-sshLagArea - sshTendAx)
                SIvec_r00(iCell) = SIvec_r0(iCell)
             end do ! iCell
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
+#endif
    
             ! Preconditioning --------------------------------------------!
 
@@ -1592,9 +1644,11 @@ module ocn_time_integration_si
    
             call mpas_timer_start("si btr vel update")
    
+#ifndef MPAS_OPENACC
             !$omp parallel
             !$omp do schedule(runtime) &
             !$omp private(temp_mask,cell1,cell2)
+#endif
             do iEdge = 1, nEdgesHalo(2)
                temp_mask = edgeMask(1, iEdge)
    
@@ -1615,11 +1669,13 @@ module ocn_time_integration_si
                           *normalBarotropicVelocityNew(iEdge)          &
                           /dcEdge(iEdge) - barotropicForcing(iEdge)))
             end do ! iEdge
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
    
             !$omp parallel
             !$omp do schedule(runtime) private(CoriolisTerm, i, eoe)
+#endif
             do iEdge = 1,nEdgesHalo(1)
                ! Compute the barotropic Coriolis term, -f*uPerp
                CoriolisTerm = 0.0_RKIND
@@ -1633,12 +1689,14 @@ module ocn_time_integration_si
                end do
                barotropicCoriolisTerm(iEdge) = CoriolisTerm
             end do
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
    
             !$omp parallel
             !$omp do schedule(runtime) &
             !$omp private(temp_mask,cell1,cell2)
+#endif
             do iEdge = 1, nEdgesOwned
                temp_mask = edgeMask(1, iEdge)
    
@@ -1652,12 +1710,14 @@ module ocn_time_integration_si
                           *normalBarotropicVelocityNew(iEdge)          &
                           /dcEdge(iEdge) - barotropicForcing(iEdge)))
             end do ! iEdge
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
    
             !$omp parallel
             !$omp do schedule(runtime) &
             !$omp private(cell1,cell2,sshEdge,thicknessSum)
+#endif
             do iEdge = 1, nEdgesOwned
                if (maxLevelEdgeTop(iEdge).eq.0) cycle
 
@@ -1683,8 +1743,10 @@ module ocn_time_integration_si
                          + normalBarotropicVelocityCur(iEdge) )       &
                          * thicknessSum
             end do ! iEdge
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
+#endif
    
    
             ! boundary update on F
@@ -1701,14 +1763,18 @@ module ocn_time_integration_si
             call mpas_dmpar_exch_group_destroy(domain, finalBtrGroupName)
             call mpas_timer_stop("si halo btr vel")
    
+#ifndef MPAS_OPENACC
             !$omp parallel
             !$omp do schedule(runtime)
+#endif
             do iEdge = 1, nEdgesAll
                normalBarotropicVelocityNew(iEdge)              &
                   = normalBarotropicVelocitySubcycleCur(iEdge) 
             end do ! iEdge
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
+#endif
 
             call mpas_timer_stop("si btr vel update")
 
@@ -1739,21 +1805,27 @@ module ocn_time_integration_si
          nEdges = nEdgesHalo(config_num_halos-1 )
          allocate(uTemp(nVertLevels,nEdges))
 
+#ifndef MPAS_OPENACC
          !$omp parallel
          !$omp do schedule(runtime)
+#endif
          do iEdge = 1, nEdges
             uTemp(:,iEdge) = normalBarotropicVelocityNew(iEdge) &
                          + normalBaroclinicVelocityNew(:,iEdge)
          end do
+#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
+#endif
 
          call ocn_GM_add_to_transport_vel(uTemp, nEdges, nVertLevels)
          call ocn_MLE_add_to_transport_vel(uTemp, nEdges)
 
+#ifndef MPAS_OPENACC
          !$omp parallel
          !$omp do schedule(runtime) &
          !$omp private(k)
+#endif
          do iEdge = 1, nEdges
             do k = 1, nVertLevels
                normalTransportVelocity(k,iEdge) =  &
@@ -1761,18 +1833,22 @@ module ocn_time_integration_si
                         normalBaroclinicVelocityNew(k,iEdge)
             end do
          end do
+#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
+#endif
 
          ! add GM and submesoscale contributions if requested
          call ocn_GM_add_to_transport_vel(normalTransportVelocity, nEdges, &
                                           nVertLevels)
          call ocn_MLE_add_to_transport_vel(normalTransportVelocity, nEdges)
 
+#ifndef MPAS_OPENACC
          !$omp parallel
          !$omp do schedule(runtime) &
          !$omp private(k, normalThicknessFluxSum, &
          !$omp         thicknessSum, normalVelocityCorrection)
+#endif
          do iEdge = 1, nEdges
 
             ! thicknessSum is initialized outside the loop because
@@ -1812,8 +1888,10 @@ module ocn_time_integration_si
             enddo
 
          end do ! iEdge
+#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
+#endif
 
          deallocate(uTemp)
 
@@ -2046,16 +2124,20 @@ module ocn_time_integration_si
 !NOTE - this is not setup for OPENACC here
 
             if(config_enable_nonhydrostatic_mode) then
+#ifndef MPAS_OPENACC
                   !$omp parallel
                   !$omp do schedule(runtime) private(k, temp_h)
+#endif
                   do iCell=1,nCells
                      do k=2,maxLevelCell(iCell)
                         temp_h = vertVelocityNonhydroCur(k,iCell) + dt * vertVelocityNonhydroTend(k,iCell)
                         vertVelocityNonhydroNew(k,iCell) = 0.5_RKIND*(vertVelocityNonhydroCur(k,iCell) + temp_h)
                      end do
                   end do
+#ifndef MPAS_OPENACC
                   !$omp end do
                   !$omp end parallel
+#endif
                end if
 
 
@@ -2180,15 +2262,19 @@ module ocn_time_integration_si
 #endif
 
             if(config_enable_nonhydrostatic_mode) then
+#ifndef MPAS_OPENACC
                !$omp parallel
                !$omp do schedule(runtime) private(k)
+#endif
                do iCell=1,nCells
                   do k=1,maxLevelCell(iCell)
                      vertVelocityNonhydroNew(k,iCell) = vertVelocityNonhydroCur(k,iCell) + dt*vertVelocityNonhydroTend(k,iCell)
                   end do
                end do
+#ifndef MPAS_OPENACC
                !$omp end do
                !$omp end parallel
+#endif
             end if
 
             if (config_compute_active_tracer_budgets) then
@@ -2315,8 +2401,10 @@ module ocn_time_integration_si
                                               modifiedGroupName, &
                                               tracersGroupTend)
 
+#ifndef MPAS_OPENACC
                      !$omp parallel
                      !$omp do schedule(runtime) private(k)
+#endif
                      do iCell = 1, nCellsAll
                      do k = minLevelCell(iCell), maxLevelCell(iCell)
                         tracersGroupNew(:,k,iCell) = &
@@ -2334,8 +2422,10 @@ module ocn_time_integration_si
                      ! limit salinity in separate loop
                      if (trim(groupItr%memberName) == &
                          'activeTracers' ) then
+#ifndef MPAS_OPENACC
                         !$omp parallel
                         !$omp do schedule(runtime) private(k)
+#endif
                         do iCell = 1, nCellsAll
                         do k = minLevelCell(iCell), maxLevelCell(iCell)
                            tracersGroupNew(indexSalinity,k,iCell) = &
@@ -2354,8 +2444,10 @@ module ocn_time_integration_si
                          'debugTracers' .and. &
                          config_reset_debugTracers_near_surface) then
 
+#ifndef MPAS_OPENACC
                         !$omp parallel
                         !$omp do schedule(runtime) private(k, lat)
+#endif
                         do iCell = 1, nCellsAll
 
                            ! Reset tracer1 to 2 in top n layers
@@ -2721,13 +2813,17 @@ module ocn_time_integration_si
                                          'idealAgeTracersIdealAgeMask', &
                                           tracerGroupIdealAgeMask)
 
+#ifndef MPAS_OPENACC
                 !$omp parallel
                 !$omp do schedule(runtime)
+#endif
                 do iCell = 1, nCellsOwned
                    tracersGroupNew(1,1,iCell) = tracerGroupIdealAgeMask(1,iCell)*tracersGroupNew(1,1,iCell)
                 end do ! cells
+#ifndef MPAS_OPENACC
                 !$omp end do
                 !$omp end parallel
+#endif
              endif
 
             ! Halo update on all tracer groups
@@ -3614,10 +3710,12 @@ module ocn_time_integration_si
 
       integer :: iEdge, cell1, cell2, i, iCell
  
+#ifndef MPAS_OPENACC
       !$omp parallel
       !$omp do schedule(runtime) &
       !$omp private(sshTendAx,iEdge,cell1,cell2,sshEdge, &
       !$omp         thicknessSum,sshDiff,fluxAx,sshArea )
+#endif
       do iCell = 1, nPrecVec
          sshTendAx = 0.0_RKIND
 
@@ -3653,8 +3751,10 @@ module ocn_time_integration_si
          SIvec_out(iCell) = -sshArea - sshTendAx
 
       end do ! iCell
+#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
+#endif
       
    end subroutine si_matvec_mul
 
@@ -3760,8 +3860,10 @@ module ocn_time_integration_si
    
          if ( config_btr_si_partition_match_mode ) then
     
+#ifndef MPAS_OPENACC
             !$omp parallel
             !$omp do schedule(runtime)
+#endif
             ! Reproducible sum of multiple fields over products
             do iCell = 1,nCellsOwned
                reprodSum1(iCell,1) = SIvec_1(iCell) !r0
@@ -3770,8 +3872,10 @@ module ocn_time_integration_si
                reprodSum2(iCell,1) = SIvec_3(iCell) !rh0
                reprodSum2(iCell,2) = SIvec_3(iCell) !rh0
             end do
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
+#endif
         
             globalProd(:) = 0.0_RKIND
             globalProd(:) =                   &
@@ -3804,8 +3908,10 @@ module ocn_time_integration_si
          if ( config_btr_si_partition_match_mode ) then
    
             ! Reproducible sum of multiple fields over products
+#ifndef MPAS_OPENACC
             !$omp parallel
             !$omp do schedule(runtime)
+#endif
             do iCell = 1,nCellsOwned
                reprodSum1(iCell,1) = SIvec_1(iCell) !r1
                reprodSum1(iCell,2) = SIvec_2(iCell) !w1
@@ -3815,8 +3921,10 @@ module ocn_time_integration_si
                reprodSum2(iCell,2) = SIvec_3(iCell) !rh1
                reprodSum2(iCell,3) = SIvec_1(iCell)  !r1
             end do
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
+#endif
       
             globalProd(:) = 0.0_RKIND
             globalProd(:) =                   &
@@ -3857,8 +3965,10 @@ module ocn_time_integration_si
 
             ! Reproducible sum of multiple fields over products
  
+#ifndef MPAS_OPENACC
             !$omp parallel
             !$omp do schedule(runtime)
+#endif
             do iCell = 1,nCellsOwned
                globalReprodSum2fld1(iCell,1) = SIvec_1(iCell) !r00
                globalReprodSum2fld1(iCell,2) = SIvec_1(iCell) !r00
@@ -3866,8 +3976,10 @@ module ocn_time_integration_si
                globalReprodSum2fld2(iCell,1) = SIvec_2(iCell) !r0
                globalReprodSum2fld2(iCell,2) = SIvec_3(iCell) !w0
             end do
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
+#endif
 
             SIcst_allreduce_global2(:) =                   &
                mpas_global_sum_nfld(globalReprodSum2fld1, &
@@ -3902,8 +4014,10 @@ module ocn_time_integration_si
  
             ! Reproducible sum of multiple fields over products
              
+#ifndef MPAS_OPENACC
             !$omp parallel
             !$omp do schedule(runtime)
+#endif
             do iCell = 1,nCellsOwned
                globalReprodSum9fld1(iCell,1) = SIvec_1(iCell) !r00
                globalReprodSum9fld1(iCell,2) = SIvec_1(iCell) !r00
@@ -3925,8 +4039,10 @@ module ocn_time_integration_si
                globalReprodSum9fld2(iCell,8) = SIvec_7(iCell) !v0
                globalReprodSum9fld2(iCell,9) = SIvec_2(iCell) !q0
             end do
+#ifndef MPAS_OPENACC
             !$omp end do
             !$omp end parallel
+#endif
     
             SIcst_allreduce_global9(:) =                   &
                mpas_global_sum_nfld(globalReprodSum9fld1, &
@@ -4048,8 +4164,10 @@ module ocn_time_integration_si
 
          iter = iter + 1
 
+#ifndef MPAS_OPENACC
          !$omp parallel
          !$omp do schedule(runtime)
+#endif
          do iCell = 1, nPrecVec
             SIvec_z1(iCell) = SIvec_rh0(iCell) &
                             + SIcst_beta0 * SIvec_z0(iCell)
@@ -4063,8 +4181,10 @@ module ocn_time_integration_si
             SIvec_r1(iCell) = SIvec_r0(iCell) &
                             - SIcst_alpha0 * SIvec_s1(iCell)
          end do ! iCell
+#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
+#endif
   
          ! Preconditioning -----------------------------------------!
          call si_precond(SIvec_r1,SIvec_rh1)
@@ -4100,8 +4220,10 @@ module ocn_time_integration_si
                       /(SIcst_omega0 - SIcst_beta1*SIcst_gamma1 &
                                      / SIcst_alpha0 )
 
+#ifndef MPAS_OPENACC
          !$omp parallel
          !$omp do schedule(runtime)
+#endif
          do iCell = 1,nPrecVec
             SIvec_r0(iCell)  = SIvec_r1(iCell)
             SIvec_s0(iCell)  = SIvec_s1(iCell)
@@ -4109,8 +4231,10 @@ module ocn_time_integration_si
             SIvec_z0(iCell)  = SIvec_z1(iCell)
             SIvec_rh0(iCell) = SIvec_rh1(iCell)
          end do ! iCell
+#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
+#endif
 
          SIcst_beta0  = SIcst_beta1
          SIcst_alpha0 = SIcst_alpha1
@@ -4194,8 +4318,10 @@ module ocn_time_integration_si
  
          iter = iter + 1
  
+#ifndef MPAS_OPENACC
          !$omp parallel
          !$omp do schedule(runtime)
+#endif
          do iCell = 1, nPrecVec
             SIvec_ph1(iCell) =  SIvec_rh0(iCell) + SIcst_beta0      &
                              * (SIvec_ph0(iCell) - SIcst_omega0     &
@@ -4222,8 +4348,10 @@ module ocn_time_integration_si
             SIvec_y0(iCell)  =  SIvec_w0(iCell)  - SIcst_alpha0     &
                                                  * SIvec_z1(iCell)
          end do ! iCell
+#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
+#endif
  
          ! Preconditioning -----------------------------------------!
  
@@ -4268,8 +4396,10 @@ module ocn_time_integration_si
                - 2.0_RKIND * SIcst_omega0 * SIcst_q0y0_global  &
                + SIcst_omega0**2.0_RKIND  * SIcst_y0y0_global
  
+#ifndef MPAS_OPENACC
          !$omp parallel
          !$omp do schedule(runtime)
+#endif
          do iCell = 1,nPrecVec
             sshSolved(iCell) = sshSolved(iCell)           &
                                   + SIcst_alpha0 * SIvec_ph1(iCell) &
@@ -4286,8 +4416,10 @@ module ocn_time_integration_si
                              * ( SIvec_t0(iCell) - SIcst_alpha0     &
                                                  * SIvec_v0(iCell))
          end do
+#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
+#endif
  
          ! Preconditioning -----------------------------------------!
  
@@ -4316,8 +4448,10 @@ module ocn_time_integration_si
                                                      * SIcst_r00z0_global )
          SIcst_rho0 = SIcst_rho1
  
+#ifndef MPAS_OPENACC
          !$omp parallel
          !$omp do schedule(runtime)
+#endif
          do iCell = 1,nPrecVec
            SIvec_r0(iCell) = SIvec_r1(iCell)
            SIvec_s0(iCell) = SIvec_s1(iCell)
@@ -4331,8 +4465,10 @@ module ocn_time_integration_si
            SIvec_wh0(iCell) = SIvec_wh1(iCell)
            SIvec_zh0(iCell) = SIvec_zh1(iCell)
         end do ! iCell
+#ifndef MPAS_OPENACC
         !$omp end do
         !$omp end parallel
+#endif
 
         if ( iter > int(mean_num_cells*5) ) then
            call mpas_log_write(&
