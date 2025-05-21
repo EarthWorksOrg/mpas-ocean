@@ -286,7 +286,8 @@ contains
                 'surfaceSalinityMonthlyClimatology', &
                 domain % streamManager, &
                 config_do_restart, &
-                .false.)
+                .false., &
+                whence = MPAS_STREAM_NEAREST )
 
            return
         endif  !  first timestep

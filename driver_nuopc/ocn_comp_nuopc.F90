@@ -370,15 +370,15 @@ contains
       real (kind=RKIND), dimension(:,:), pointer :: avgSSHGradient
 
       interface
-         subroutine xml_stream_parser(xmlname, mgr_p, comm, ierr) bind(c)
+         subroutine mpaso_xml_stream_parser(xmlname, mgr_p, comm, ierr) bind(c)
             use iso_c_binding, only : c_char, c_ptr, c_int
             character(kind=c_char), dimension(*), intent(in) :: xmlname
             type (c_ptr), intent(inout) :: mgr_p
             integer(kind=c_int), intent(inout) :: comm
             integer(kind=c_int), intent(out) :: ierr
-         end subroutine xml_stream_parser
+         end subroutine mpaso_xml_stream_parser
 
-         subroutine xml_stream_get_attributes(xmlname, streamname, comm, filename, ref_time, filename_interval, io_type, ierr) bind(c)
+         subroutine mpaso_xml_stream_get_attributes(xmlname, streamname, comm, filename, ref_time, filename_interval, io_type, ierr) bind(c)
             use iso_c_binding, only : c_char, c_int
             character(kind=c_char), dimension(*), intent(in) :: xmlname
             character(kind=c_char), dimension(*), intent(in) :: streamname
@@ -388,7 +388,7 @@ contains
             character(kind=c_char), dimension(*), intent(out) :: filename_interval
             character(kind=c_char), dimension(*), intent(out) :: io_type
             integer(kind=c_int), intent(out) :: ierr
-         end subroutine xml_stream_get_attributes
+         end subroutine mpaso_xml_stream_get_attributes
       end interface
 
     !-----------------------------------------------------------------------
@@ -615,7 +615,7 @@ contains
     call mpas_f_to_c_string(domain_ptr % streams_filename, c_filename)
     call mpas_f_to_c_string(mesh_stream, c_mesh_stream)
     c_comm = domain_ptr % dminfo % comm
-    call xml_stream_get_attributes(c_filename, c_mesh_stream, c_comm, &
+    call mpaso_xml_stream_get_attributes(c_filename, c_mesh_stream, c_comm, &
                                    c_mesh_filename_temp, c_ref_time_temp, &
                                    c_filename_interval_temp, c_iotype, c_ierr)
     if (c_ierr /= 0) then
@@ -671,7 +671,7 @@ contains
 
     ! Parse / read all streams configuration
     mgr_p = c_loc(domain_ptr % streamManager)
-    call xml_stream_parser(c_filename, mgr_p, c_comm, c_ierr)
+    call mpaso_xml_stream_parser(c_filename, mgr_p, c_comm, c_ierr)
     if (c_ierr /= 0) then
        call mpas_log_write('xml_stream_parser failed.', MPAS_LOG_CRIT)
     end if
@@ -709,23 +709,23 @@ contains
 !    !DD there hase to be a better way to go from esmf type to MPAS_Time_Type
     call ESMF_TimeGet(Ecurrtime, s_i8=s_e, sn_i8=sn_e, sd_i8=sd_e, yy=yy_e, calendar = ecalendar, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-!    currtime%t%basetime%S  = s_e
-!    currtime%t%basetime%Sn = sn_e
-!    currtime%t%basetime%Sd = sd_e
-!    currtime%t%yr = yy_e
-    currtime%t = Ecurrtime
+
+    currtime%t%basetime%S  = s_e
+    currtime%t%basetime%Sn = sn_e
+    currtime%t%basetime%Sd = sd_e
+    currtime%t%yr = yy_e
 
     call ESMF_CalendarGet(Ecalendar, calkindflag=type_e, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-!    if(type_e == ESMF_CALKIND_NOLEAP) then
-!       currTime%t%calendar => noleapCal
-!    elseif(type_e == ESMF_CALKIND_GREGORIAN) then
-!       currTime%t%calendar => gregorianCal
-!    else
-!       rc = 1
-!       if (ChkErr(rc,__LINE__,u_FILE_u)) return
-!    endif
+    if(type_e == ESMF_CALKIND_NOLEAP) then
+       currTime%t%calendar => noleapCal
+    elseif(type_e == ESMF_CALKIND_GREGORIAN) then
+       currTime%t%calendar => gregorianCal
+    else
+       rc = 1
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    endif
 
     if (runtype == 'initial') then
        call mpas_set_clock_time(domain_ptr % clock, currTime, MPAS_START_TIME, ierr)
@@ -1002,9 +1002,16 @@ contains
     integer                   :: shrlogunit      ! old values
     integer                   :: ocnid
     character(len=*), parameter  :: subname = "ocn_comp_nuopc:(DataInitialize)"
+
+    type (block_type), pointer :: block_ptr
+    type (mpas_pool_type), pointer :: statePool, &
+                                      forcingPool
+    integer :: ierr
+
     !-----------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
+    errorCode = ESMF_SUCCESS
 
     !--------------------------------
     ! Reset shr logging to my log file
@@ -1229,6 +1236,67 @@ contains
     !?   call document ('DataInitialize', 'orb_obliqr  ',  orb_obliqr)
     !?endif
 
+!!!!!get this section from ocn_comp_mct afer the first ocn_export_mct
+    if (errorCode /= 0) then
+       call mpas_log_write('ERROR in ocn_export', MPAS_LOG_CRIT)
+    endif
+
+    ! Setup clock for initial runs
+    if (runtype == "continue" .or. runtype == "branch" ) then
+       block_ptr => domain_ptr % blocklist
+       do while(associated(block_ptr))
+          call mpas_pool_get_subpool(block_ptr % structs, 'state', statePool)
+          call mpas_pool_get_subpool(block_ptr % structs, 'forcing', forcingPool)
+
+          call ocn_time_average_coupled_init(forcingPool)
+          call ocn_time_average_coupled_accumulate(statePool, forcingPool, 1)
+          block_ptr => block_ptr % next
+       end do
+    end if
+
+
+    !call mpas_pool_get_config(domain_ptr % configs, 'config_land_ice_flux_mode', config_land_ice_flux_mode)
+    !if ( trim(config_land_ice_flux_mode) .eq. 'pressure_only' ) then
+    !   call seq_infodata_PutData( infodata, ocn_prognostic=.true., ocnrof_prognostic=.true., &
+    !                                        ocn_c2_glcshelf=.false.)
+    !else if ( trim(config_land_ice_flux_mode) .eq. 'standalone' ) then
+    !   call seq_infodata_PutData( infodata, ocn_prognostic=.true., ocnrof_prognostic=.true., &
+    !                                        ocn_c2_glcshelf=.false.)
+    !else if ( trim(config_land_ice_flux_mode) .eq. 'coupled' ) then
+    !   call seq_infodata_PutData( infodata, ocn_prognostic=.true., ocnrof_prognostic=.true., &
+    !                                        ocn_c2_glcshelf=.true.)
+    !else
+    !   call mpas_log_write('ERROR: unknown land_ice_flux_mode: ' // trim(config_land_ice_flux_mode), MPAS_LOG_CRIT)
+    !end if
+
+!-----------------------------------------------------------------------
+!
+!   get initial state from driver
+!
+!-----------------------------------------------------------------------
+
+    !timeStep = mpas_get_clock_timestep(domain_ptr % clock, ierr=ierr)
+    call ESMF_ClockGet(clock, timeStep=timeStep, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    !call mpas_get_timeInterval(timeStep, dt=dt)
+    call ESMF_TimeIntervalGet( timeStep, s=ocn_cpl_dt, rc=rc )
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    call ocn_import(importState, flds_scalar_name, domain_ptr,  &
+                       errorCode, rc)
+    if (errorCode /= 0) then
+       call mpas_log_write('Error in ocn_import', MPAS_LOG_CRIT)
+    endif
+
+    itimestep = 0
+
+    ! Reset all output alarms, to prevent intial time step from writing any output, unless it's ringing.
+    call mpas_stream_mgr_reset_alarms(domain_ptr % streamManager, direction=MPAS_STREAM_OUTPUT, ierr=ierr)
+    call mpas_stream_mgr_reset_alarms(domain_ptr % streamManager, direction=MPAS_STREAM_INPUT, ierr=ierr)
+
+
+!!!!!end section from ocn_comp_mct
+
     !-----------------------------------------------------------------------
     ! check whether all Fields in the exportState are "Updated"
     !-----------------------------------------------------------------------
@@ -1374,7 +1442,8 @@ contains
 
       ! Import state from coupler
        call ocn_import(importState, flds_scalar_name, domain_ptr,  &
-                       errorCode, rc)
+                       errorCode, rc, do_sw_chk=.true. )
+
       ! Ensures MPAS AM write/compute startup steps are performed
       call ocn_analysis_compute_startup(domain_ptr, ierr)
 

@@ -35,6 +35,10 @@
 			description="The name of the region group, for which the MHT should be computed in addition to the global MHT."
 			possible_values="'all', '', or the name of a region group."
 		/>
+                <nml_option name="config_AM_meridionalHeatTransport_backward_output_offset" type="character" default_value="00-00-01_00:00:00"
+                        description="Backward offset for filename timestamps when writing the output stream"
+                        possible_values="A time interval in YYYY-MM-DD_hh:mm:ss."
+                />
 	</nml_record>
 	<dims>
 		<dim name="nMerHeatTransBins" definition="namelist:config_AM_meridionalHeatTransport_num_bins"

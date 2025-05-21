@@ -39,6 +39,10 @@
 			description="The name of the transect group that holds the boundaries for the regions in the region group, configured in 'config_AM_mocStreamfunction_region_group'. Please note, that these two should have the same amount of entries."
 			possible_values="Any valid transect group name."
 		/>
+                <nml_option name="config_AM_mocStreamfunction_backward_output_offset" type="character" default_value="00-00-01_00:00:00"
+                        description="Backward offset for filename timestamps when writing the output stream"
+                        possible_values="A time interval in YYYY-MM-DD_hh:mm:ss."
+                />
 	</nml_record>
 	<dims>
 		<dim name="nMocStreamfunctionBins" definition="namelist:config_AM_mocStreamfunction_num_bins"
