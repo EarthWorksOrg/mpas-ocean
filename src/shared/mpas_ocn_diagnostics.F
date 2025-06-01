@@ -219,10 +219,10 @@ contains
 !     if ( associated(frazilSurfacePressure) ) then
 !        !$acc enter data copyin(frazilSurfacePressure)
 !     endif
-!     if (landIcePressureOn) then
-!        !$acc enter data copyin(landIcePressure)
-!        !$acc enter data copyin(landIceDraft)
-!     endif
+     if (landIcePressureOn) then
+        !$acc enter data copyin(landIcePressure)
+        !$acc enter data copyin(landIceDraft)
+     endif
 #endif
 
       ! inputs: layerThickness, normalVelocity
@@ -544,10 +544,10 @@ contains
 !     if ( associated(frazilSurfacePressure) ) then
 !        !$acc exit data delete(frazilSurfacePressure)
 !     endif
-!     if (landIcePressureOn) then
-!        !$acc exit data delete(landIcePressure)
-!        !$acc exit data delete(landIceDraft)
-!     endif
+     if (landIcePressureOn) then
+        !$acc exit data delete(landIcePressure)
+        !$acc exit data delete(landIceDraft)
+     endif
 
 !     !$acc exit data delete (layerThickness, normalVelocity, &
 !     !$acc                   activeTracers)
@@ -2239,10 +2239,10 @@ contains
       if (landIcePressureOn) then
 #ifdef MPAS_OPENACC
          !$acc parallel loop &
-         !$acc    present(surfacePressure)
+         !$acc    present(surfacePressure, landIcePressure)
+         !!acc    present(surfacePressure)
          !! need this eventually, but there is currently
          !! an issue, probably with the re-retrieval of pointer
-         !!acc    present(surfacePressure, landIcePressure)
 #else
          !$omp do schedule(runtime)
 #endif
@@ -2563,8 +2563,8 @@ contains
          !! This first directive should be correct, but there may
          !! be a problem with the optional argument. Removing optional
          !! landIceDraft from the present list for now.
-         !!acc parallel loop present(pressureAdjustedSSH, landIceDraft)
-         !$acc parallel loop present(pressureAdjustedSSH)
+         !$acc parallel loop present(pressureAdjustedSSH, landIceDraft)
+         !!acc parallel loop present(pressureAdjustedSSH)
 #else
          !$omp parallel
          !$omp do schedule(runtime)
