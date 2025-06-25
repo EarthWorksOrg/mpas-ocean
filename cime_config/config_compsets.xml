@@ -7,6 +7,12 @@
   or in the CIME documenation
   </help>
 
+  <!-- EarhtWorks compsets -->
+  <compset>
+    <alias>CMPASO</alias>
+    <lname>2000_DATM%NYF_SLND_DICE%SSMI_MPASO_SROF_SGLC_SWAV_SESP</lname>
+  </compset>
+
   <!-- E3SM C/G compsets -->
 
   <compset>
