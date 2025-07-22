@@ -42,6 +42,7 @@ module ocn_tracer_ideal_age
    !--------------------------------------------------------------------
 
    public :: ocn_tracer_ideal_age_compute, &
+             ocn_tracer_ideal_age_compute_gpu, &
              ocn_tracer_ideal_age_init
 
    !--------------------------------------------------------------------
@@ -146,6 +147,86 @@ contains
 
    end subroutine ocn_tracer_ideal_age_compute!}}}
 
+   subroutine ocn_tracer_ideal_age_compute_gpu(nTracers, nCellsSolve, minLevelCell, maxLevelCell, layerThickness, &
+                  idealAgeMask, tracers, tracer_tend, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      ! one dimensional arrays
+      integer, dimension(:), intent(in) :: &
+         minLevelCell, maxLevelCell
+
+      ! two dimensional arrays
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         layerThickness, &
+         idealAgeMask
+
+      integer, intent(in) :: nTracers, nCellsSolve
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      ! three dimensional arrays
+      real (kind=RKIND), dimension(:,:,:), intent(inout) :: &
+        tracers, &
+        tracer_tend
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: Error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iCell, iLevel, iTracer
+
+      err = 0
+
+      ! add a tendency increment equivalent to "dt" to entire domain below top level
+      !$omp parallel
+      !$omp do schedule(runtime) private(iLevel, iTracer)
+      do iCell=1,nCellsSolve
+        do iLevel=minLevelCell(iCell) + 1, maxLevelCell(iCell)
+          do iTracer=1,nTracers
+             tracer_tend(iTracer, iLevel, iCell) = tracer_tend(iTracer, iLevel, iCell) +  &
+                layerThickness(iLevel,iCell)
+          enddo
+        enddo
+      enddo
+      !$omp end do
+      !$omp end parallel
+
+      ! zero surface tendency where mask == 0
+      !$omp parallel
+      !$omp do schedule(runtime) private(iLevel, iTracer)
+      do iCell=1,nCellsSolve
+        iLevel = minLevelCell(iCell)
+        do iTracer=1,nTracers
+           tracer_tend(iTracer, iLevel, iCell) = tracer_tend(iTracer, iLevel, iCell) +  &
+              idealAgeMask(iTracer, iCell)*layerThickness(iLevel,iCell)
+        enddo
+      enddo
+      !$omp end do
+      !$omp end parallel
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_tracer_ideal_age_compute_gpu!}}}
+
 !***********************************************************************
 !
 !  routine ocn_tracer_ideal_age_init
@@ -181,11 +262,12 @@ contains
       call mpas_pool_get_subpool(forcingPool, &
                                  'tracersIdealAgeFields', &
                                   tracersIdealAgeFieldsPool)
-      call mpas_pool_get_array(tracersIdealAgeFieldsPool, &
+      call mpas_pool_get_array_gpu(tracersIdealAgeFieldsPool, &
                                'idealAgeTracersIdealAgeMask', &
                                 idealAgeMask)
 
-      call mpas_pool_get_array(forcingPool, 'landIceMask', landIceMask)
+      call mpas_pool_get_array_gpu(forcingPool, 'landIceMask', landIceMask)
+!$acc update host(idealAgeMask,landIceMask)
 
       if (config_use_idealAgeTracers_idealAge_forcing) then
          ! set mask = 0 for open ocean
@@ -195,6 +277,7 @@ contains
             where (landIceMask /= 0) idealAgeMask(1,:) = 1.0_RKIND
          end if
       end if
+!$acc update device(idealAgeMask)
 
    end subroutine ocn_tracer_ideal_age_init!}}}
 

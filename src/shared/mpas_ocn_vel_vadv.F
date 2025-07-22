@@ -43,6 +43,7 @@ module ocn_vel_vadv
    !--------------------------------------------------------------------
 
    public :: ocn_vel_vadv_tend, &
+             ocn_vel_vadv_tend_gpu, &
              ocn_vel_vadv_init
 
    !--------------------------------------------------------------------
@@ -125,19 +126,10 @@ contains
 
 
       allocate(w_dudzTopEdge(nVertLevels+1,nEdgesAll))
-      !$acc enter data create(w_dudzTopEdge)
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop &
-      !$acc    present(cellsOnEdge, minLevelEdgeBot, maxLevelEdgeTop, w_dudzTopEdge, &
-      !$acc            vertAleTransportTop, normalVelocity, &
-      !$acc            layerThickEdgeFlux) &
-      !$acc    private(cell1, cell2, k, kmin, kmax, wAvg)
-#else
       !$omp parallel
       !$omp do schedule(runtime) &
       !$omp    private(cell1, cell2, k, kmin, kmax, wAvg)
-#endif
       do iEdge = 1, nEdgesOwned
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
@@ -161,19 +153,11 @@ contains
          ! transport is zero at bottom
          w_dudzTopEdge(kmax+1,iEdge) = 0.0_RKIND
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
-#endif
 
       ! Average w*du/dz from vertical interface to vertical middle of cell
-#ifdef MPAS_OPENACC
-      !$acc parallel loop &
-      !$acc    present(minLevelEdgeBot, maxLevelEdgeTop, tend, edgeMask, w_dudzTopEdge)&
-      !$acc    private(k, kmin, kmax)
-#else
       !$omp do schedule(runtime) &
       !$omp    private(k, kmin, kmax)
-#endif
       do iEdge = 1, nEdgesOwned
       kmin = minLevelEdgeBot(iEdge)
       kmax = maxLevelEdgeTop(iEdge)
@@ -183,12 +167,9 @@ contains
                                     w_dudzTopEdge(k+1,iEdge))
       enddo
       enddo
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
 
-      !$acc exit data delete(w_dudzTopEdge)
       deallocate(w_dudzTopEdge)
 
       call mpas_timer_stop("vel vadv")
@@ -196,6 +177,123 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_vel_vadv_tend!}}}
+
+   subroutine ocn_vel_vadv_tend_gpu(normalVelocity, layerThickEdgeFlux, &
+                                vertAleTransportTop, tend, err)!{{{
+
+      !-----------------------------------------------------------------
+      ! input variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         normalVelocity,     &!< [in] Horizontal velocity
+         layerThickEdgeFlux,     &!< [in] Layer thickness at edge
+         vertAleTransportTop  !< [in] Vertical velocity on top layer
+
+      !-----------------------------------------------------------------
+      ! input/output variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         tend          !< [inout] accumulated velocity tendency
+
+      !-----------------------------------------------------------------
+      ! output variables
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< [out] error flag
+
+      !-----------------------------------------------------------------
+      ! local variables
+      !-----------------------------------------------------------------
+
+      integer ::       &
+         iEdge, k,     &! loop indices for edge, vertical loops
+         kmin, kmax,   &! shallowest and deepest active layer on edge
+         cell1, cell2   ! neighbor cell indices across edge
+
+      real (kind=RKIND) :: &
+         wAvg           ! ALE transport velocity across top edge
+
+      real (kind=RKIND), dimension(:,:), allocatable :: &
+         w_dudzTopEdge  ! w*du/dz at top of edge
+
+      ! End preamble
+      !-----------------------------------------------------------------
+      ! Begin code
+
+      !*** Set return error code and return early if not turned on
+      !*** Start relevant timer
+
+      err = 0
+      if (velVadvOff) return
+      call mpas_timer_start("vel vadv gpu")
+
+
+      allocate(w_dudzTopEdge(nVertLevels+1,nEdgesAll))
+
+!$acc data present(cellsOnEdge,minLevelEdgeBot,maxLevelEdgeTop,edgeMask,&
+!$acc              vertAleTransportTop,normalVelocity,layerThickEdgeFlux,tend) &
+!$acc      create(w_dudzTopEdge)
+
+      !$omp parallel
+      !$omp do schedule(runtime) &
+      !$omp    private(cell1, cell2, k, kmin, kmax, wAvg)
+!$acc parallel
+!$acc loop gang worker private(cell1,cell2,kmin,kmax)
+      do iEdge = 1, nEdgesOwned
+         cell1 = cellsOnEdge(1,iEdge)
+         cell2 = cellsOnEdge(2,iEdge)
+         kmin  = minLevelEdgeBot(iEdge)
+         kmax  = maxLevelEdgeTop(iEdge)
+
+         w_dudzTopEdge(kmin,iEdge) = 0.0_RKIND ! flux is zero at top
+!$acc loop vector private(wAvg)
+         do k = kmin+1,kmax
+            ! Average w from cell center to edge
+            wAvg = 0.5_RKIND*(vertAleTransportTop(k,cell1) + &
+                              vertAleTransportTop(k,cell2))
+            ! compute dudz at vertical interface with first order derivative.
+            w_dudzTopEdge(k,iEdge) = wAvg* &
+                                     (normalVelocity(k-1,iEdge) - &
+                                      normalVelocity(k,  iEdge))/ &
+                         (0.5_RKIND*(layerThickEdgeFlux(k-1,iEdge) + &
+                                     layerThickEdgeFlux(k  ,iEdge)))
+         end do
+         ! transport is zero at bottom
+         w_dudzTopEdge(kmax+1,iEdge) = 0.0_RKIND
+      end do
+!$acc end parallel
+      !$omp end do
+
+      ! Average w*du/dz from vertical interface to vertical middle of cell
+      !$omp do schedule(runtime) &
+      !$omp    private(k, kmin, kmax)
+!$acc parallel
+!$acc loop gang worker private(kmin,kmax)
+      do iEdge = 1, nEdgesOwned
+      kmin = minLevelEdgeBot(iEdge)
+      kmax = maxLevelEdgeTop(iEdge)
+!$acc loop vector
+      do k = kmin, kmax
+         tend(k,iEdge) = tend(k,iEdge) - edgeMask(k,iEdge)* &
+                         0.5_RKIND*(w_dudzTopEdge(k  ,iEdge) + &
+                                    w_dudzTopEdge(k+1,iEdge))
+      enddo
+      enddo
+!$acc end parallel
+      !$omp end do
+      !$omp end parallel
+
+!$acc end data
+
+      deallocate(w_dudzTopEdge)
+
+      call mpas_timer_stop("vel vadv gpu")
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_vel_vadv_tend_gpu!}}}
 
 !***********************************************************************
 !

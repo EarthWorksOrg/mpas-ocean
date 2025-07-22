@@ -40,6 +40,7 @@ module ocn_tracer_short_wave_absorption_variable
    !--------------------------------------------------------------------
 
    public :: ocn_tracer_short_wave_absorption_variable_tend, &
+             ocn_tracer_short_wave_absorption_variable_tend_gpu, &
              ocn_tracer_short_wave_absorption_variable_init, &
              ocn_get_variable_sw_fraction,                   &
              ocn_get_os00_coeffs,                            &
@@ -224,6 +225,160 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_tracer_short_wave_absorption_variable_tend!}}}
+
+   subroutine ocn_tracer_short_wave_absorption_variable_tend_gpu(meshPool, swForcingPool, forcingPool, index_temperature, & !{{{
+                                  layerThickness, penetrativeTemperatureFlux, penetrativeTemperatureFluxOBL, tend, &
+                                  bottomLayerShortwaveTemperatureFlux, err)
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+
+      type (mpas_pool_type), intent(in) :: &
+         meshPool,                         &          !< Input: mesh information
+         swForcingPool,                    &          !< Input: chlorophyll, cloud, zenith data
+         forcingPool
+
+      real (kind=RKIND), dimension(:), intent(in) :: &
+        penetrativeTemperatureFlux !< Input: penetrative temperature flux through the surface
+
+      real (kind=RKIND), dimension(:), intent(out) :: &
+        penetrativeTemperatureFluxOBL
+
+      real (kind=RKIND), dimension(:), intent(out) :: &
+        bottomLayerShortwaveTemperatureFlux
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: layerThickness !< Input: Layer thicknesses
+
+      integer, intent(in) :: index_temperature
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:,:), intent(inout) :: &
+         tend          !< Input/Output: velocity tendency
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iCell, k, depLev, nCells
+      integer, pointer :: nVertLevels
+      integer, dimension(:), pointer :: nCellsArray
+
+      integer, dimension(:), pointer :: minLevelCell, maxLevelCell
+
+      real (kind=RKIND) :: depth
+      real (kind=RKIND), dimension(:), pointer :: refBottomDepth
+      real (kind=RKIND), dimension(:), allocatable :: weights
+      real (kind=RKIND), dimension(:), pointer :: chlorophyllA, zenithAngle, clearSkyRadiation
+      real (kind=RKIND), dimension(4) :: Avals, Kvals
+      real (kind=RKIND) :: cloudRatio ! cloud Ratio = 1 - incident_sfc_sw_radiation/clearSkyRadiation
+      real (kind=RKIND) :: fluxRemaining ! amount of incident solar left to be distributed
+      err = 0
+
+      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+      call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
+
+      call mpas_pool_get_array(meshPool, 'minLevelCell', minLevelCell)
+      call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
+      call mpas_pool_get_array(meshPool, 'refBottomDepth', refBottomDepth)
+
+      allocate(weights(nVertLevels+1))
+      weights = 0.0_RKIND
+      weights(minLevelCell(iCell)) = 1.0_RKIND
+      Avals(:)=0.0_RKIND
+      Kvals(:)=0.0_RKIND
+
+      call mpas_pool_get_array(swForcingPool,'chlorophyllData',chlorophyllA)
+
+      call mpas_pool_get_array(swForcingPool,'zenithAngle',zenithAngle)
+      call mpas_pool_get_array(swForcingPool,'clearSkyRadiation',clearSkyRadiation)
+
+      nCells = nCellsArray( 3 )
+
+      !$omp parallel
+      !$omp do schedule(runtime) private(fluxRemaining, depth, cloudRatio, k, depLev, Avals, Kvals, weights)
+      do iCell = 1, nCells
+        depth = 0.0_RKIND
+        fluxRemaining = 1.0_RKIND
+        cloudRatio = min(1.0_RKIND, 1.0_RKIND - penetrativeTemperatureFlux(iCell)/(hflux_factor*(1.0E-15_RKIND + &
+                                                     clearSkyRadiation(iCell))))
+        cloudRatio = max(0.0_RKIND, cloudRatio)
+
+        call ocn_get_os00_coeffs(chlorophyllA(iCell),zenithAngle(iCell),cloudRatio,Avals, Kvals)
+
+        do k = minLevelCell(iCell), maxLevelCell(iCell)
+          depth = depth + layerThickness(k, iCell)
+
+          call ocn_get_variable_sw_fraction(depth, weights(k+1), Avals, Kvals)
+          tend(index_temperature, k, iCell) = tend(index_temperature, k, iCell) + penetrativeTemperatureFlux(iCell) &
+                                            * (weights(k) - weights(k+1) )
+          fluxRemaining = fluxRemaining - (weights(k) - weights(k+1))
+        end do
+
+        ! based on coupled testing we simply log the shortwave temperature flux incident on the bottom of the ocean
+        k = maxLevelCell(iCell)
+        if(k > 0 .and. fluxRemaining > 0.0_RKIND) then
+           bottomLayerShortwaveTemperatureFlux(iCell) = penetrativeTemperatureFlux(iCell) * fluxRemaining
+        else
+           bottomLayerShortwaveTemperatureFlux(iCell) = 0.0_RKIND
+        end if
+
+        depth = 0.0_RKIND
+        do k=minLevelCell(iCell),maxLevelCell(iCell)
+           depth = depth + layerThickness(k,iCell)
+           if(depth > abs(config_surface_buoyancy_depth)) exit
+        enddo
+
+        if(k == maxLevelCell(iCell) .or. k == minLevelCell(iCell)) then
+           depLev=minLevelCell(iCell)+1
+        else
+           depLev=k
+        endif
+        penetrativeTemperatureFluxOBL(iCell)=penetrativeTemperatureFlux(iCell)*weights(depLev)
+
+      end do
+      !$omp end do
+      !$omp end parallel
+
+      if(config_enable_shortwave_energy_fixer) then
+#ifndef CPRPGI
+         !$omp parallel
+         !$omp do schedule(runtime) private(k)
+#endif
+         do iCell = 1, nCells
+            k = maxLevelCell(iCell)
+            tend(index_temperature, k, iCell) = tend(index_temperature, k, iCell) + &
+                bottomLayerShortwaveTemperatureFlux(iCell)
+         end do
+#ifndef CPRPGI
+         !$omp end do
+         !$omp end parallel
+#endif
+      end if
+
+      deallocate(weights)
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_tracer_short_wave_absorption_variable_tend_gpu!}}}
 
 !***********************************************************************
 !

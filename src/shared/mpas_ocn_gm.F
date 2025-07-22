@@ -36,7 +36,8 @@ module ocn_gm
 
    public :: ocn_GM_compute_Bolus_velocity, &
              ocn_GM_init,                   &
-             ocn_GM_add_to_transport_vel
+             ocn_GM_add_to_transport_vel,   &
+             ocn_GM_add_to_transport_vel_gpu
 
    !--------------------------------------------------------------------
    !
@@ -162,30 +163,33 @@ contains
 
       call mpas_timer_start('gm bolus velocity')
 
-      call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel)
-      call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, timeLevel)
+      call mpas_pool_get_array_gpu(statePool, 'normalVelocity', normalVelocity, timeLevel)
+      call mpas_pool_get_array_gpu(statePool, 'layerThickness', layerThickness, timeLevel)
       call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
-      call mpas_pool_get_array(statePool, 'ssh', ssh, timeLevel)
-      call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, timeLevel)
+      call mpas_pool_get_array_gpu(statePool, 'ssh', ssh, timeLevel)
+      call mpas_pool_get_array_gpu(tracersPool, 'activeTracers', activeTracers, timeLevel)
       call mpas_pool_get_dimension(tracersPool, 'index_temperature', indexTemperaturePtr)
       call mpas_pool_get_dimension(tracersPool, 'index_salinity', indexSalinityPtr)
       indexTemperature = indexTemperaturePtr
       indexSalinity    = indexSalinityPtr
 
-      call mpas_pool_get_array(meshPool, 'minLevelEdgeBot', minLevelEdgeBot)
-      call mpas_pool_get_array(meshPool, 'minLevelCell', minLevelCell)
-      call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
-      call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
-      call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
-      call mpas_pool_get_array(meshPool, 'areaCell', areaCell)
-      call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
-      call mpas_pool_get_array(meshPool, 'dvEdge', dvEdge)
-      call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nEdgesOnCell)
-      call mpas_pool_get_array(meshPool, 'edgesOnCell', edgesOnCell)
+      call mpas_pool_get_array_gpu(meshPool, 'minLevelEdgeBot', minLevelEdgeBot)
+      call mpas_pool_get_array_gpu(meshPool, 'minLevelCell', minLevelCell)
+      call mpas_pool_get_array_gpu(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
+      call mpas_pool_get_array_gpu(meshPool, 'maxLevelCell', maxLevelCell)
+      call mpas_pool_get_array_gpu(meshPool, 'cellsOnEdge', cellsOnEdge)
+      call mpas_pool_get_array_gpu(meshPool, 'areaCell', areaCell)
+      call mpas_pool_get_array_gpu(meshPool, 'dcEdge', dcEdge)
+      call mpas_pool_get_array_gpu(meshPool, 'dvEdge', dvEdge)
+      call mpas_pool_get_array_gpu(meshPool, 'nEdgesOnCell', nEdgesOnCell)
+      call mpas_pool_get_array_gpu(meshPool, 'edgesOnCell', edgesOnCell)
 
       call mpas_pool_get_dimension(meshPool, 'nEdgesArray', nEdgesArray)
       call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
+!$acc update host(normalVelocity,layerThickness,ssh,activeTracers,&
+!$acc             minLevelEdgeBot,minLevelCell,maxLevelEdgeTop,maxLevelCell,cellsOnEdge,areaCell,dcEdge,dvEdge,nEdgesOnCell,edgesOnCell,&
+!$acc             normalGMBolusVelocity,k33,RediKappaScaling,RediKappaSfcTaper)
 
       allocate (rightHandSide(nVertLevels))
       allocate (tridiagA(nVertLevels))
@@ -219,6 +223,7 @@ contains
       end do
       !$omp end do
       !$omp end parallel
+!$acc update device(normalGMBolusVelocity,k33,RediKappaScaling,RediKappaSfcTaper)
 
       ! The following code computes scaling for Redi mixing terms and the slope triads
       ! It is only needed when Redi mixing is enabled.
@@ -230,7 +235,7 @@ contains
          allocate(k33Norm(nVertLevels + 1))
 
          if ( config_Redi_N2_based_taper_enable ) then
-
+!$acc update host(indMLD,BruntVaisalaFreqTop,RediKappaScaling)
             !$omp parallel
             !$omp do schedule(runtime) private(maxLocation, k, BruntVaisalaFreqTopEdge, maxN)
             do iCell = 1, nCells
@@ -249,11 +254,13 @@ contains
                                                        1.0_RKIND)
                end do
             end do
+!$acc update device(RediKappaScaling)
             !$omp end do
             !$omp end parallel
          end if
 
          if (config_Redi_use_surface_taper) then
+!$acc update host(indMLD,zMid,RediKappaSfcTaper)
             !$omp parallel
             !$omp do schedule (runtime) private(zMLD, k)
             do iCell = 1, nCells
@@ -266,9 +273,11 @@ contains
             end do
             !$omp end do
             !$omp end parallel
+!$acc update device(RediKappaSfcTaper)
          end if
 
          nCells = nCellsArray(3)
+!$acc update host(k33,thermExpCoeff,salineContractCoeff,slopeTriadUp,slopeTriadDown,RediKappaSfcTaper,indMLD,RediKappaScaling)
          !$omp parallel
          !$omp do schedule(runtime)  &
          !$omp private(invAreaCell, k33Norm, k, dzTop, dTdzTop, dSdzTop, i, iEdge, cell1, cell2, &
@@ -393,6 +402,7 @@ contains
          end do ! iCell
          !$omp end do
          !$omp end parallel
+!$acc update device(k33,slopeTriadUp,slopeTriadDown)
 
          deallocate (dzTop)
          deallocate (dTdzTop)
@@ -403,6 +413,7 @@ contains
 
       ! allow disabling of K33 for testing
       if (config_disable_redi_k33) then
+         write(*,*) "config_disable_redi_k33 NOT EXECUTING"
          nCells = nCellsArray(size(nCellsArray))
          !$omp parallel
          !$omp do schedule(runtime)
@@ -425,6 +436,7 @@ contains
          ! For config_GM_closure = 'N2_dependent' use a scaling to taper gmBolusKappa
          ! based on stratification relative to the maximum in the column
          if (local_config_GM_kappa_lat_depth_variable) then
+            write(*,*) "local_config_GM_kappa_lat_depth_variable NOT EXECUTING"
             !$omp parallel
             !$omp do schedule(runtime) private(k, BruntVaisalaFreqTopEdge, maxN, cell1, cell2)
             do iEdge=1,nEdges
@@ -459,6 +471,7 @@ contains
          ! spatially variable baroclinic phase speed, the mode can be specified by
          ! config_GM_spatially_variable_baroclinic_mode
          if (local_config_GM_lat_variable_c2) then
+            write(*,*) "local_config_GM_lat_variable_c2 NOT EXECUTING"
             !$omp parallel
             !$omp do schedule(runtime) private(k, cell1, cell2, sum_hN, lt1, lt2, ltSum, c_min)
             do iEdge = 1, nEdges
@@ -498,6 +511,7 @@ contains
             !$omp end parallel
 
          else !constant phase speed for config_GM_closure = 'constant'
+!$acc update host(cGMphaseSpeed)
             !$omp parallel
             !$omp do schedule(runtime)
             do iEdge = 1, nEdges
@@ -505,11 +519,13 @@ contains
             end do
             !$omp end do
             !$omp end parallel
+!$acc update device(cGMphaseSpeed)
          end if
 
          ! When config_GM_closure = 'Visbeck' actually modify the value of gmBolusKappa based on
          ! Visbeck et al (1997), JPO as recast by Cessi (2008), JPO
          if (local_config_GM_compute_Visbeck) then
+           write(*,*) "local_config_GM_compute_Visbeck NOT EXECUTING"
            call mpas_pool_get_array(meshPool, 'fEdge', fEdge)
            !$omp parallel
            !$omp do schedule(runtime) private(k, cell1, cell2, sum_hN, ltSum, sumRi, countN2, &
@@ -562,6 +578,7 @@ contains
          ! When config_GM_closure = 'EdenGreatbatch' actually modify the value of gmBolusKappa based on
          ! Eden and Greatbach (2008), Ocean Model., but assuming quasi-geostrophy to simplify the EKE budget
          if (local_config_GM_compute_EdenGreatbatch) then
+           write(*,*) "local_config_GM_compute_EdenGreatbatch NOT EXECUTING"
            call mpas_pool_get_array(meshPool, 'fEdge', fEdge)
 
            !$omp parallel
@@ -598,6 +615,7 @@ contains
          nEdges = nEdgesArray(3)
          if (config_GM_horizontal_taper == 'RossbyRadius'.or. &
              config_Redi_horizontal_taper == 'RossbyRadius') then
+             write(*,*) "config_GM_horizontal_taper and config_Redi_horizontal_taper NOT EXECUTING"
             allocate (RossbyRadiusTaper(nEdges))
             call mpas_pool_get_array(meshPool, 'fEdge', fEdge)
 
@@ -675,6 +693,7 @@ contains
          end if
 
          if (config_Redi_closure == 'equalGM') then
+            write(*,*) "config_Redi_closure == 'equalGM' NOT EXECUTING"
             ! Set Redi closure to be the same as the GM closure, i.e. if
             ! config_GM_closure is EdenGreatbatch or Visbeck, you will see those
             ! same closure fields in RediKappa. The horizontal tapering still
@@ -688,6 +707,7 @@ contains
             !$omp end parallel
          else if (config_Redi_closure == 'constant'.and. &
                    config_Redi_horizontal_taper == 'RossbyRadius') then
+            write(*,*) "config_Redi_closure == 'constant' config_Redi_horizontal_taper == 'RossbyRadius' NOT EXECUTING"
             !$omp parallel
             !$omp do schedule(runtime)
             do iEdge=1, nEdges
@@ -697,6 +717,8 @@ contains
             !$omp end parallel
          end if
 
+!$acc update host(gmStreamFuncTopOfEdge,BruntVaisalaFreqTop,cGMphaseSpeed,layerThickEdgeMean,gmBolusKappa,gmKappaScaling,&
+!$acc             gradDensityEddy)
          !!$omp parallel
          !!$omp do schedule(runtime) private(cell1, cell2, k, &
          !!$omp             BruntVaisalaFreqTopEdge, N) &
@@ -758,8 +780,10 @@ contains
          end do
          !!$omp end do
          !!$omp end parallel
+!$acc update device(gmStreamFuncTopOfEdge)
 
          ! Compute normalGMBolusVelocity from the stream function and apply resolution taper of GM here
+!$acc update host(normalGMBolusVelocity,gmHorizontalTaper,gmStreamFuncTopOfEdge,layerThickEdgeMean)
          !$omp parallel
          !$omp do schedule(runtime) private(k)
          do iEdge = 1, nEdges
@@ -770,6 +794,7 @@ contains
          end do
          !$omp end do
          !$omp end parallel
+!$acc update device(normalGMBolusVelocity)
 
          deallocate (rightHandSide)
          deallocate (tridiagA)
@@ -880,6 +905,37 @@ contains
 
     end subroutine ocn_GM_add_to_transport_vel!}}}
 
+    subroutine ocn_GM_add_to_transport_vel_gpu(normalTransportVelocity, &
+                                           nEdges, nVertLevels)!{{{
+
+       real (kind=RKIND), dimension(:,:), intent(inout) :: &
+            normalTransportVelocity
+
+       integer, intent(in) :: nEdges, nVertLevels
+
+       integer :: iEdge, k
+
+       if (.not. config_use_gm) return
+
+!$acc data present(normalTransportVelocity,normalGMBolusVelocity)
+       !$omp parallel 
+       !$omp do schedule(runtime) &
+       !$omp private(k)
+!$acc parallel
+!$acc loop gang vector collapse(2)
+       do iEdge = 1, nEdges
+          do k = 1, nVertLevels
+             normalTransportVelocity(k,iEdge) = normalTransportVelocity(k,iEdge) + &
+                                    normalGMBolusVelocity(k,iEdge)
+          end do
+       end do
+!$acc end parallel
+       !$omp end do
+       !$omp end parallel
+!$acc end data
+
+    end subroutine ocn_GM_add_to_transport_vel_gpu!}}}
+
 !***********************************************************************
 !
 !  routine ocn_GM_init
@@ -919,9 +975,10 @@ contains
          call mpas_pool_get_subpool(block%structs, 'mesh', meshPool)
          call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
          call mpas_pool_get_dimension(meshPool, 'nEdges', nEdges)
-         call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
-         call mpas_pool_get_array(meshPool, 'dcEdge', dcEdge)
-         call mpas_pool_get_array(meshPool, 'fEdge', fEdge)
+         call mpas_pool_get_array_gpu(meshPool, 'cellsOnEdge', cellsOnEdge)
+         call mpas_pool_get_array_gpu(meshPool, 'dcEdge', dcEdge)
+         call mpas_pool_get_array_gpu(meshPool, 'fEdge', fEdge)
+!$acc update host(cellsOnEdge,dcEdge,fEdge)
          if (config_Redi_use_slope_taper) then
             slopeTaperFactor = 1.0_RKIND
          else
@@ -950,7 +1007,8 @@ contains
          RediGMinitValue = 1.0_RKIND
          !compute beta
          call mpas_pool_get_config(meshPool, 'sphere_radius', sphere_radius)
-         call mpas_pool_get_array(meshPool, 'latEdge', latEdge)
+         call mpas_pool_get_array_gpu(meshPool, 'latEdge', latEdge)
+!$acc update host(latEdge)
          !$omp parallel
          !$omp do schedule(runtime)
          do iEdge=1,nEdges
@@ -958,6 +1016,7 @@ contains
          end do
          !$omp end do
          !$omp end parallel
+!$acc update device(betaEdge)
 
          if (config_GM_closure == 'constant') then
             local_config_GM_lat_variable_c2 = .false.
@@ -994,7 +1053,8 @@ contains
             local_config_GM_compute_Visbeck = .true.
             local_config_GM_compute_EdenGreatbatch = .false.
 
-            call mpas_pool_get_array(meshPool, 'latEdge', latEdge)
+            call mpas_pool_get_array_gpu(meshPool, 'latEdge', latEdge)
+!$acc update host(latEdge)
             call mpas_pool_get_config(meshPool, 'sphere_radius', sphere_radius)
             !$omp parallel
             !$omp do schedule(runtime)
@@ -1010,7 +1070,8 @@ contains
             local_config_GM_compute_Visbeck = .false.
             local_config_GM_compute_EdenGreatbatch = .true.
 
-            call mpas_pool_get_array(meshPool, 'latEdge', latEdge)
+            call mpas_pool_get_array_gpu(meshPool, 'latEdge', latEdge)
+!$acc update host(latEdge)
             call mpas_pool_get_config(meshPool, 'sphere_radius', sphere_radius)
             !$omp parallel
             !$omp do schedule(runtime)
@@ -1024,6 +1085,7 @@ contains
             err = 1
             call mpas_dmpar_finalize(domain%dminfo)
          end if
+!$acc update device(gmBolusKappa)
 
          ! Initialize horizontal taper
          if (config_GM_horizontal_taper == 'none' .or. &
@@ -1059,6 +1121,7 @@ contains
             err = 1
             call mpas_dmpar_finalize(domain%dminfo)
          end if
+!$acc update device(gmHorizontalTaper)
 
          block => block%next
       end do

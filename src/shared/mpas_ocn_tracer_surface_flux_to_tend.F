@@ -45,6 +45,7 @@ module ocn_tracer_surface_flux_to_tend
    !--------------------------------------------------------------------
 
    public :: ocn_tracer_surface_flux_tend, &
+             ocn_tracer_surface_flux_tend_gpu, &
              ocn_tracer_surface_flux_init
 
    !--------------------------------------------------------------------
@@ -201,6 +202,151 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_tracer_surface_flux_tend!}}}
+
+   subroutine ocn_tracer_surface_flux_tend_gpu(meshPool, fractionAbsorbed, fractionAbsorbedRunoff, layerThickness,  &
+      surfaceTracerFlux, surfaceTracerFluxRunoff, tend, err)!{{{
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: &
+         meshPool          !< Input: mesh information
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+        layerThickness !< Input: Layer thickness
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+        surfaceTracerFlux !< Input: surface tracer fluxes
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+        fractionAbsorbed !< Input: Coefficients for the application of surface fluxes
+
+      real (kind=RKIND), dimension(:,:), intent(in), pointer :: &
+        surfaceTracerFluxRunoff !< Input: surface tracer fluxes from river runoff
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+        fractionAbsorbedRunoff !< Input: Coefficients for the application of surface fluxes due to river runoff
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:,:), intent(inout) :: &
+         tend          !< Input/Output: velocity tendency
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iCell, k, iTracer, nTracers, nCells
+      integer, pointer :: nVertLevels
+      integer, dimension(:), pointer :: nCellsArray
+      integer, dimension(:), pointer :: minLevelCell, maxLevelCell
+
+      real (kind=RKIND) :: remainingFlux
+
+      err = 0
+
+      if (.not. surfaceTracerFluxOn) return
+
+      call mpas_timer_start("surface_tracer_flux gpu")
+
+      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+      call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
+      nTracers = size(tend, dim=1)
+
+      call mpas_pool_get_array_gpu(meshPool, 'minLevelCell', minLevelCell)
+      call mpas_pool_get_array_gpu(meshPool, 'maxLevelCell', maxLevelCell)
+
+      nCells = nCellsArray( 1 )
+
+!$acc data present(minLevelCell,maxLevelCell,&
+!$acc              fractionAbsorbed,tend,surfaceTracerFlux,fractionAbsorbedRunoff,surfaceTracerFluxRunoff)
+
+      !$omp parallel
+      !$omp do schedule(runtime) private(remainingFlux, k, iTracer)
+!$acc parallel
+!$acc loop gang worker private(remainingFlux)
+      do iCell = 1, nCells
+        remainingFlux = 1.0_RKIND
+!$acc loop seq
+        do k = minLevelCell(iCell), maxLevelCell(iCell)
+          remainingFlux = remainingFlux - fractionAbsorbed(k, iCell)
+!$acc loop vector
+          do iTracer = 1, nTracers
+            tend(iTracer, k, iCell) = tend(iTracer, k, iCell) + surfaceTracerFlux(iTracer, iCell) * fractionAbsorbed(k, iCell)
+          end do
+        end do
+
+        if(maxLevelCell(iCell) > 0 .and. remainingFlux > 0.0_RKIND) then
+!$acc loop vector
+          do iTracer = 1, nTracers
+            tend(iTracer, maxLevelCell(iCell), iCell) = tend(iTracer, maxLevelCell(iCell), iCell) &
+                                                      + surfaceTracerFlux(iTracer, iCell) * remainingFlux
+          end do
+        end if
+      end do
+!$acc end parallel
+      !$omp end do
+      !$omp end parallel
+
+      call mpas_timer_stop("surface_tracer_flux gpu")
+
+      ! now do runoff component
+
+      if (associated(surfaceTracerFluxRunoff)) then
+        call mpas_timer_start("surface_tracer_runoff_flux gpu")
+
+        !$omp parallel
+        !$omp do schedule(runtime) private(remainingFlux, k, iTracer)
+!$acc parallel
+!$acc loop gang worker private(remainingFlux)
+        do iCell = 1, nCells
+          remainingFlux = 1.0_RKIND
+!$acc loop seq
+          do k = minLevelCell(iCell), maxLevelCell(iCell)
+            remainingFlux = remainingFlux - fractionAbsorbedRunoff(k, iCell)
+!$acc loop vector
+            do iTracer = 1, nTracers
+              tend(iTracer, k, iCell) = tend(iTracer, k, iCell) +  &
+                 surfaceTracerFluxRunoff(iTracer, iCell) * fractionAbsorbedRunoff(k, iCell)
+            end do
+          end do
+
+          if(maxLevelCell(iCell) > 0 .and. remainingFlux > 0.0_RKIND) then
+!$acc loop vector
+            do iTracer = 1, nTracers
+              tend(iTracer, maxLevelCell(iCell), iCell) = tend(iTracer, maxLevelCell(iCell), iCell) &
+                                                        + surfaceTracerFluxRunoff(iTracer, iCell) * remainingFlux
+            end do
+          end if
+        end do
+!$acc end parallel
+        !$omp end do
+        !$omp end parallel
+
+        call mpas_timer_stop("surface_tracer_runoff_flux gpu")
+      end if
+
+!$acc end data
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_tracer_surface_flux_tend_gpu!}}}
 
 !***********************************************************************
 !

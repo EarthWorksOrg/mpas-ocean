@@ -39,7 +39,8 @@ module ocn_tracer_advection
 
    ! public module method interfaces
    public :: ocn_tracer_advection_init,         &
-             ocn_tracer_advection_tend
+             ocn_tracer_advection_tend,         &
+             ocn_tracer_advection_tend_gpu
 
    ! privat module variables
    logical :: tracerAdvOff  !< flag to turn off tracer advection
@@ -111,6 +112,55 @@ module ocn_tracer_advection
       call mpas_timer_stop("tracer adv")
 
    end subroutine ocn_tracer_advection_tend!}}}
+
+   subroutine ocn_tracer_advection_tend_gpu(tracers, normalThicknessFlux, &
+                                        w, layerThickness, dt, tend,  &
+                                        computeBudgets)!{{{
+
+      !*** Input/Output parameters
+
+      real (kind=RKIND), dimension(:,:,:), intent(inout) :: &
+         tend            !< [in,out] Tracer tendency to which advection added
+
+      !*** Input parameters
+
+      real (kind=RKIND), dimension(:,:,:), intent(in) :: &
+         tracers               !< [in] Current tracer values
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         normalThicknessFlux, &!< [in] Thickness weighted horiz velocity
+         w,                   &!< [in] Vertical velocity
+         layerThickness        !< [in] Thickness field
+
+      real (kind=RKIND), intent(in) :: &
+         dt                    !< [in] Time step
+
+      logical, intent(in) :: &
+         computeBudgets      ! flag to compute active tracer budget
+
+      ! end of preamble
+      !----------------
+      ! begin code
+
+      ! immediate return if tracer advection not selected
+      if (tracerAdvOff) return
+
+      call mpas_timer_start("tracer adv gpu")
+
+      ! call specific advection routine based on choice of monotonicity
+      if (monotonicOn) then
+         call ocn_tracer_advection_mono_tend_gpu(tend, tracers, layerThickness,    &
+                                             normalThicknessFlux, w, dt,       &
+                                             computeBudgets)
+
+      else
+         call ocn_tracer_advection_std_tend_gpu(tracers, normalThicknessFlux, &
+                                            w, layerThickness, dt, tend)
+      endif
+
+      call mpas_timer_stop("tracer adv gpu")
+
+   end subroutine ocn_tracer_advection_tend_gpu!}}}
 
 !***********************************************************************
 !

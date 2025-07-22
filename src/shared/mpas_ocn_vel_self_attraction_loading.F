@@ -663,8 +663,9 @@ contains
         block_ptr => domain % blocklist
         call mpas_pool_get_subpool(block_ptr % structs, 'forcing', forcingPool)
 
-        call mpas_pool_get_array(forcingPool, 'coastalSmoothingFactor', &
+        call mpas_pool_get_array_gpu(forcingPool, 'coastalSmoothingFactor', &
                                                coastalSmoothingFactor)
+!$acc update host(coastalSmoothingFactor)
 
         ! Set up coastal ssh smoothing
         allocate(sshSmoothed(nCellsAll))
@@ -679,6 +680,7 @@ contains
         else
            coastalSmoothingFactor(:) = 1.0_RKIND
         endif
+!$acc update device(coastalSmoothingFactor)
 
         ! Setup Alarm for SAL
         alarmTime = mpas_get_clock_time(domain % clock, MPAS_START_TIME, ierr=err)

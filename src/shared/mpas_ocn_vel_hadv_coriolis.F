@@ -43,6 +43,7 @@ module ocn_vel_hadv_coriolis
    !--------------------------------------------------------------------
 
    public :: ocn_vel_hadv_coriolis_tend, &
+             ocn_vel_hadv_coriolis_tend_gpu, &
              ocn_vel_hadv_coriolis_init
 
    !--------------------------------------------------------------------
@@ -139,63 +140,33 @@ contains
 
       allocate(tmpVorticity(nVertLevels,nEdgesAll), &
                        qArr(nVertLevels,nEdgesAll))
-      !$acc enter data create(tmpVorticity, qArr)
 
-#ifndef MPAS_OPENACC
       !$omp parallel
-#endif
       if (usePlanetVorticity) then
-#ifdef MPAS_OPENACC
-         !$acc parallel loop &
-         !$acc    present(tmpVorticity, normRelVortEdge, &
-         !$acc            normPlanetVortEdge) &
-         !$acc    private(k)
-#else
          !$omp do schedule(runtime) &
          !$omp    private(k)
-#endif
          do iEdge = 1, nEdgesAll
          do k=1,nVertLevels
             tmpVorticity(k,iEdge) = normRelVortEdge(k,iEdge) + &
                                  normPlanetVortEdge(k,iEdge)
          end do
          end do
-#ifndef MPAS_OPENACC
          !$omp end do
-#endif
       else
-#ifdef MPAS_OPENACC
-         !$acc parallel loop &
-         !$acc    present(tmpVorticity, normRelVortEdge) &
-         !$acc    private(k)
-#else
          !$omp do schedule(runtime) &
          !$omp    private(k)
-#endif
          do iEdge = 1, nEdgesAll
          do k=1,nVertLevels
             tmpVorticity(k,iEdge) = normRelVortEdge(k,iEdge)
          end do
          end do
-#ifndef MPAS_OPENACC
          !$omp end do
-#endif
       endif
-#ifndef MPAS_OPENACC
          !$omp end parallel
-#endif
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop &
-      !$acc    present(nEdgesOnEdge, edgesOnEdge, weightsOnEdge, &
-      !$acc            minLevelEdgeBot, maxLevelEdgeTop, qArr, tmpVorticity, &
-      !$acc            normalVelocity, layerThickEdgeFlux) &
-      !$acc    private(k, j, eoe, edgeWeight, avgVorticity, kmin, kmax)
-#else
       !$omp parallel
       !$omp do schedule(runtime) &
       !$omp    private(k, j, eoe, edgeWeight, avgVorticity, kmin, kmax)
-#endif
       do iEdge = 1, nEdgesOwned
          kmin = minLevelEdgeBot(iEdge)
          kmax = maxLevelEdgeTop(iEdge)
@@ -219,19 +190,10 @@ contains
 
          end do
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
-#endif
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop &
-      !$acc    present(cellsOnEdge, minLevelEdgeBot, maxLevelEdgeTop, edgeMask, &
-      !$acc            dcEdge, tend, qArr, kineticEnergyCell) &
-      !$acc    private(cell1, cell2, invLength, k, kmin, kmax)
-#else
       !$omp do schedule(runtime) &
       !$omp    private(cell1, cell2, invLength, k, kmin, kmax)
-#endif
       do iEdge = 1, nEdgesOwned
          kmin = minLevelEdgeBot(iEdge)
          kmax = maxLevelEdgeTop(iEdge)
@@ -247,12 +209,9 @@ contains
                           - kineticEnergyCell(k,cell1))*invLength)
          end do
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
 
-      !$acc exit data delete(tmpVorticity, qArr)
       deallocate(qArr,tmpVorticity)
 
       call mpas_timer_stop("coriolis")
@@ -260,6 +219,169 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_vel_hadv_coriolis_tend!}}}
+
+   subroutine ocn_vel_hadv_coriolis_tend_gpu(normRelVortEdge, &
+                                      normPlanetVortEdge, &
+                                      layerThickEdgeFlux, normalVelocity, &
+                                      kineticEnergyCell, tend, err)!{{{
+
+      !-----------------------------------------------------------------
+      ! input variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         normRelVortEdge,    &!< [in] relative vorticity/thickness at edge
+         normPlanetVortEdge, &!< [in] planetary vorticity/thickness at edge
+         layerThickEdgeFlux,     &!< [in] layer thickness on edge
+         normalVelocity,     &!< [in] Horizontal velocity
+         kineticEnergyCell    !< [in] Kinetic Energy
+
+      !-----------------------------------------------------------------
+      ! input/output variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         tend                 !< [inout] accumulated velocity tendency
+
+      !-----------------------------------------------------------------
+      ! output variables
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< [out] error flag
+
+      !-----------------------------------------------------------------
+      ! local variables
+      !-----------------------------------------------------------------
+
+      integer ::       &
+         iEdge, j, k,  &! loop indices for edges, vertical
+         cell1, cell2, &! neighbor cell indices
+         eoe,          &! edge on edge index
+         kmin, kmax     ! min and max indices for vertical
+
+      real (kind=RKIND) :: &
+         avgVorticity, &! vorticity averaged across edge
+         invLength,    &! temp variable for 1/dcedge
+         edgeWeight     ! weight for summing over edges
+
+      real (kind=RKIND), dimension(:,:), allocatable :: &
+         qArr,         &! temporary vorticity array
+         tmpVorticity   ! vorticity on edge
+
+      ! End preamble
+      !-----------------------------------------------------------------
+      ! Begin code
+
+      !*** Set error code and exit early if disabled
+      !*** Otherwise, start timer
+
+      err = 0
+      if (hadvCoriolisDisabled) return
+      call mpas_timer_start("coriolis gpu")
+
+      !*** allocate and transfer temporary arrays
+
+      allocate(tmpVorticity(nVertLevels,nEdgesAll), &
+                       qArr(nVertLevels,nEdgesAll))
+
+!$acc data present(minLevelEdgeBot,maxLevelEdgeTop,nEdgesOnEdge,edgesOnEdge,weightsOnEdge,&
+!$acc              cellsOnEdge,dcEdge,edgeMask,&
+!$acc              normRelVortEdge,normPlanetVortEdge,normalVelocity,layerThickEdgeFlux,tend,kineticEnergyCell) &
+!$acc      create(tmpVorticity,qArr)
+
+      !$omp parallel
+      if (usePlanetVorticity) then
+         !$omp do schedule(runtime) &
+         !$omp    private(k)
+!$acc parallel
+!$acc loop gang vector collapse(2)
+         do iEdge = 1, nEdgesAll
+         do k=1,nVertLevels
+            tmpVorticity(k,iEdge) = normRelVortEdge(k,iEdge) + &
+                                 normPlanetVortEdge(k,iEdge)
+         end do
+         end do
+!$acc end parallel
+         !$omp end do
+      else
+         !$omp do schedule(runtime) &
+         !$omp    private(k)
+!$acc parallel
+!$acc loop gang vector collapse(2)
+         do iEdge = 1, nEdgesAll
+         do k=1,nVertLevels
+            tmpVorticity(k,iEdge) = normRelVortEdge(k,iEdge)
+         end do
+         end do
+!$acc end parallel
+         !$omp end do
+      endif
+         !$omp end parallel
+
+      !$omp parallel
+      !$omp do schedule(runtime) &
+      !$omp    private(k, j, eoe, edgeWeight, avgVorticity, kmin, kmax)
+!$acc parallel
+!$acc loop gang worker private(kmin,kmax,eoe,edgeWeight)
+      do iEdge = 1, nEdgesOwned
+         kmin = minLevelEdgeBot(iEdge)
+         kmax = maxLevelEdgeTop(iEdge)
+!$acc loop vector
+         do k = 1, nVertLevels
+            qArr(k,iEdge) = 0.0_RKIND
+         end do
+!$acc loop vector private(avgVorticity)
+            do k = kmin, kmax
+
+!$acc loop seq
+         do j = 1, nEdgesOnEdge(iEdge)
+            eoe = edgesOnEdge(j, iEdge)
+            edgeWeight = weightsOnEdge(j, iEdge)
+
+               avgVorticity = 0.5_RKIND* &
+                              (tmpVorticity(k,iEdge) + &
+                               tmpVorticity(k,eoe))
+               qArr(k,iEdge) = qArr(k,iEdge) + &
+                               edgeWeight*normalVelocity(k,eoe)* &
+                               avgVorticity*layerThickEdgeFlux(k,eoe)
+            end do
+         end do
+      end do
+!$acc end parallel
+      !$omp end do
+
+      !$omp do schedule(runtime) &
+      !$omp    private(cell1, cell2, invLength, k, kmin, kmax)
+!$acc parallel
+!$acc loop gang worker private(kmin,kmax,cell1,cell2,invLength)
+      do iEdge = 1, nEdgesOwned
+         kmin = minLevelEdgeBot(iEdge)
+         kmax = maxLevelEdgeTop(iEdge)
+
+         cell1 = cellsOnEdge(1,iEdge)
+         cell2 = cellsOnEdge(2,iEdge)
+         invLength = 1.0_RKIND / dcEdge(iEdge)
+!$acc loop vector
+         do k = kmin, kmax
+            tend(k,iEdge) = tend(k,iEdge) + &
+                        edgeMask(k,iEdge)* (qArr(k,iEdge) - &
+                           (kineticEnergyCell(k,cell2) &
+                          - kineticEnergyCell(k,cell1))*invLength)
+         end do
+      end do
+!$acc end parallel
+      !$omp end do
+      !$omp end parallel
+
+!$acc end data
+
+      deallocate(qArr,tmpVorticity)
+
+      call mpas_timer_stop("coriolis gpu")
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_vel_hadv_coriolis_tend_gpu!}}}
 
 !***********************************************************************
 !

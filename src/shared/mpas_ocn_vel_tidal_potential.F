@@ -50,6 +50,7 @@ module ocn_vel_tidal_potential
 
    public :: ocn_vel_tidal_potential_tend, &
              ocn_compute_tidal_potential_forcing, &
+             ocn_compute_tidal_potential_forcing_gpu, &
              ocn_vel_tidal_potential_init, &
              tidal_constituent_factors
 
@@ -157,15 +158,8 @@ contains
       err = 0
       if (tidalPotentialOff) return
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop &
-      !$acc    present(cellsOnEdge, maxLevelEdgeTop, dcEdge, edgeMask, &
-      !$acc            tidalPotEta, ssh, surfacePressure, tend, ssh_sal) &
-      !$acc    private(cell1, cell2, invdcEdge, potentialGrad, k, kMax)
-#else
       !$omp parallel do schedule(runtime) &
       !$omp    private(cell1, cell2, invdcEdge, potentialGrad, k, kMax)
-#endif
       do iEdge=1,nEdgesOwned
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
@@ -183,9 +177,7 @@ contains
                             edgeMask(k,iEdge)*potentialGrad
          end do
       end do
-#ifndef MPAS_OPENACC
       !$omp end parallel do
-#endif
 
    end subroutine ocn_vel_tidal_potential_tend!}}}
 
@@ -266,6 +258,73 @@ contains
       end do
 
    end subroutine ocn_compute_tidal_potential_forcing!}}}
+
+   subroutine ocn_compute_tidal_potential_forcing_gpu(err)!{{{
+
+      !-----------------------------------------------------------------
+      ! input variables
+      !-----------------------------------------------------------------
+
+      !-----------------------------------------------------------------
+      ! output variables
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: Error flag
+
+      !-----------------------------------------------------------------
+      ! local variables
+      !-----------------------------------------------------------------
+
+      integer :: &
+         iCell, jCon,  &! loop indices for cell, constituent loops
+         conType        ! id for constituent type
+
+      real (kind=RKIND) :: &
+         lon,&
+         tArg,&
+         ramp,&
+         t, &
+         nCycles,&
+         period
+
+      ! End preamble
+      !-----------------------------------------------------------------
+      ! Begin code
+
+      !*** Set error flag and return early if not turned on
+      err = 0
+      if (tidalPotentialOff) return
+!NV!  !!! NOT EXECUTING !!!
+      write(*,*) "ocn_compute_tidal_potential_forcing_gpu NOT EXECUTING"
+
+      ramp = tanh((2.0_RKIND*daysSinceStartOfSim)/tidalPotRamp)
+      t = daysSinceStartOfSim*86400.0_RKIND
+
+      do iCell = 1, nCellsAll
+         tidalPotEta(iCell) = 0.0_RKIND
+      end do
+
+      !*** Compute eta by summing all constituent contributions
+      do jCon = 1, nTidalConstituents
+         period = 2.0_RKIND*pii/tidalConstituentFrequency(jCon)
+         nCycles = real(int(t/period),RKIND)
+         targ = tidalConstituentFrequency(jCon)*(t - nCycles*period) + &
+                tidalConstituentNodalPhase(jCon) + &
+                tidalConstituentAstronomical(jCon)
+         conType = tidalConstituentType(jCon)
+         do iCell = 1, nCellsAll
+           lon = lonCell(iCell)
+           tidalPotEta(iCell) = tidalPotEta(iCell) + &
+                         ramp * tidalConstituentAmplitude(jCon) &
+                              * tidalConstituentNodalAmplitude(jCon) &
+                              * tidalConstituentLoveNumbers(jCon) &
+                              * latitudeFunction(iCell,conType+1) &
+                              * cos(tArg  + real(conType,RKIND)*lon)
+         end do
+        
+      end do
+
+   end subroutine ocn_compute_tidal_potential_forcing_gpu!}}}
 
 
 !***********************************************************************
@@ -353,38 +412,41 @@ contains
 
          call mpas_pool_get_dimension(block_ptr % dimensions, 'nCells', nCells)
 
-         call mpas_pool_get_array(meshPool, 'latCell', latCell)
+         call mpas_pool_get_array_gpu(meshPool, 'latCell', latCell)
 
-         call mpas_pool_get_array(forcingPool, 'tidalPotentialEta', &
+         call mpas_pool_get_array_gpu(forcingPool, 'tidalPotentialEta', &
                                                 tidalPotEta)
 
-         call mpas_pool_get_array(forcingPool, &
+         call mpas_pool_get_array_gpu(forcingPool, &
                             'nTidalPotentialConstituents', &
                              nTidalPotentialConstituents)
-         call mpas_pool_get_array(forcingPool, &
+         call mpas_pool_get_array_gpu(forcingPool, &
                             'tidalPotentialConstituentAmplitude', & 
                              tidalConstituentAmplitude)
-         call mpas_pool_get_array(forcingPool, &
+         call mpas_pool_get_array_gpu(forcingPool, &
                             'tidalPotentialConstituentFrequency', &
                             tidalConstituentFrequency)
-         call mpas_pool_get_array(forcingPool, &
+         call mpas_pool_get_array_gpu(forcingPool, &
                             'tidalPotentialConstituentLoveNumbers', &
                             tidalConstituentLoveNumbers)
-         call mpas_pool_get_array(forcingPool, &
+         call mpas_pool_get_array_gpu(forcingPool, &
                             'tidalPotentialConstituentNodalAmplitude', &
                             tidalConstituentNodalAmplitude)
-         call mpas_pool_get_array(forcingPool, &
+         call mpas_pool_get_array_gpu(forcingPool, &
                             'tidalPotentialConstituentAstronomical', &
                             tidalConstituentAstronomical)
-         call mpas_pool_get_array(forcingPool, &
+         call mpas_pool_get_array_gpu(forcingPool, &
                             'tidalPotentialConstituentNodalPhase', &
                             tidalConstituentNodalPhase)
-         call mpas_pool_get_array(forcingPool, &
+         call mpas_pool_get_array_gpu(forcingPool, &
                             'tidalPotentialConstituentType', &
                             tidalConstituentType)
-         call mpas_pool_get_array(forcingPool, &
+         call mpas_pool_get_array_gpu(forcingPool, &
                             'tidalPotentialLatitudeFunction', &
                             latitudeFunction)
+!$acc update host(latCell,tidalPotEta,nTidalPotentialConstituents,tidalConstituentAmplitude,tidalConstituentFrequency,&
+!$acc             tidalConstituentLoveNumbers,tidalConstituentNodalAmplitude,tidalConstituentAstronomical,tidalConstituentNodalPhase,&
+!$acc             tidalConstituentType,latitudeFunction)
 
          call mpas_set_time(refTime, &
                dateTimeString=config_tidal_potential_reference_time)

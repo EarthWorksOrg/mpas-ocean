@@ -41,6 +41,7 @@ module ocn_vmix_coefs_redi
    private :: ocn_tracer_vmix_coefs_redi
 
    public :: ocn_vmix_coefs_redi_build, &
+             ocn_vmix_coefs_redi_build_gpu, &
              ocn_vmix_coefs_redi_init
 
    !--------------------------------------------------------------------
@@ -122,6 +123,60 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_vmix_coefs_redi_build!}}}
+
+   subroutine ocn_vmix_coefs_redi_build_gpu(meshPool, statePool, err, timeLevelIn)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: &
+         meshPool          !< Input: mesh information
+
+      integer, intent(in), optional :: timeLevelIn !< Input: Time level for state pool
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(inout) :: &
+         statePool             !< Input/Output: state information
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      !-----------------------------------------------------------------
+      !
+      ! call relevant routines for computing tendencies
+      ! note that the user can choose multiple options and the
+      !   tendencies will be added together
+      !
+      !-----------------------------------------------------------------
+
+      err = 0
+
+      if (config_use_Redi) then
+          call ocn_tracer_vmix_coefs_redi_gpu(meshPool, vertDiffTopOfCell, k33, RediKappa, err)
+      end if
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_vmix_coefs_redi_build_gpu!}}}
 
 !***********************************************************************
 !
@@ -218,6 +273,103 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_tracer_vmix_coefs_redi!}}}
+
+   subroutine ocn_tracer_vmix_coefs_redi_gpu(meshPool, vertDiffTopOfCell, k33, RediKappa, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: &
+         meshPool          !< Input: mesh information
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: vertDiffTopOfCell !< Output: Vertical diffusion
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:), intent(in) :: &
+         RediKappa
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         k33
+
+      real (kind=RKIND) :: rediKappaCell
+      real (kind=RKIND),dimension(:),pointer :: dvEdge, dcEdge, areaCell
+
+      integer :: i, iCell, nCells, iEdge
+
+      integer, dimension(:), pointer :: nEdgesOnCell, nCellsArray
+      integer, dimension(:,:), pointer :: edgesOnCell
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      err = 0
+
+      if(.not.rediDiffOn) return
+
+
+      call mpas_timer_start('tracer redi coef gpu')
+
+      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+      call mpas_pool_get_array_gpu(meshPool, 'nEdgesOnCell', nEdgesOnCell)
+      call mpas_pool_get_array_gpu(meshPool, 'edgesOnCell', edgesOnCell)
+      call mpas_pool_get_array_gpu(meshPool, 'areaCell', areaCell)
+      call mpas_pool_get_array_gpu(meshPool, 'dvEdge', dvEdge)
+      call mpas_pool_get_array_gpu(meshPool, 'dcEdge', dcEdge)
+
+      nCells = nCellsArray(1)
+
+!$acc data present(nEdgesOnCell,edgesOnCell,dvEdge,dcEdge,areaCell,&
+!$acc              RediKappa,vertDiffTopOfCell,k33)
+
+      !$omp parallel
+      !$omp do schedule(runtime) private(i, rediKappaCell, iEdge)
+
+!$acc parallel
+!$acc loop gang private(rediKappaCell,iEdge)
+      do iCell = 1, nCells
+         rediKappaCell = 0.0_RKIND
+!$acc loop seq
+         do i = 1, nEdgesOnCell(iCell)
+            iEdge = edgesOnCell(i, iCell)
+            rediKappaCell = rediKappaCell + 0.25_RKIND*RediKappa(iEdge) * dvEdge(iEdge) * dcEdge(iEdge)
+         enddo
+!$acc loop vector
+         do i = 1, size(vertDiffTopOfCell,1)
+         vertDiffTopOfCell(i, iCell) = vertDiffTopOfCell(i, iCell) + rediKappaCell * k33(i, iCell) &
+                        / areaCell(iCell)
+         enddo
+      end do
+!$acc end parallel
+
+      !$omp end do
+      !$omp end parallel
+
+!$acc end data
+
+      call mpas_timer_stop('tracer redi coef gpu')
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_tracer_vmix_coefs_redi_gpu!}}}
 
 
 !***********************************************************************

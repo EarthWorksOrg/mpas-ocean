@@ -44,6 +44,7 @@ module ocn_thick_hadv
    !--------------------------------------------------------------------
 
    public :: ocn_thick_hadv_tend, &
+             ocn_thick_hadv_tend_gpu, &
              ocn_thick_hadv_init
 
    !--------------------------------------------------------------------
@@ -126,16 +127,8 @@ contains
 
       call mpas_timer_start("thick hadv")
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop &
-      !$acc     present(tend, normalVelocity, dvEdge, &
-      !$acc             layerThickEdgeFlux, edgeSignOnCell, &
-      !$acc             minLevelEdgeBot, maxLevelEdgeBot) &
-      !$acc     private(i, k, invAreaCell, flux)
-#else
       !$omp parallel
       !$omp do schedule(runtime) private(invAreaCell, i, iEdge, k, flux)
-#endif
       do iCell = 1, nCellsOwned
         invAreaCell = 1.0_RKIND / areaCell(iCell)
         do i = 1, nEdgesOnCell(iCell)
@@ -146,16 +139,100 @@ contains
           end do
         end do
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
 
       call mpas_timer_stop("thick hadv")
 
    !--------------------------------------------------------------------
 
    end subroutine ocn_thick_hadv_tend!}}}
+
+   subroutine ocn_thick_hadv_tend_gpu(normalVelocity, layerThickEdgeFlux, tend, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         normalVelocity    !< Input: velocity
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         layerThickEdgeFlux     !< Input: flux-related thickness at edge
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         tend          !< Input/Output: velocity tendency
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iEdge, k, i, iCell
+
+      real (kind=RKIND) :: flux, invAreaCell
+
+      !-----------------------------------------------------------------
+      !
+      ! call relevant routines for computing tendencies
+      ! note that the user can choose multiple options and the
+      !   tendencies will be added together
+      !
+      !-----------------------------------------------------------------
+
+      err = 0
+
+      if(.not.thickHadvOn) return
+
+      call mpas_timer_start("thick hadv gpu")
+
+!$acc data present(areaCell,nEdgesOnCell,edgesOnCell,minLevelEdgeBot,maxLevelEdgeTop,dvEdge,edgeSignOnCell,&
+!$acc              normalVelocity,layerThickEdgeFlux,tend)
+
+      !$omp parallel
+      !$omp do schedule(runtime) private(invAreaCell, i, iEdge, k, flux)
+!$acc parallel
+!$acc loop gang private(invAreaCell,iEdge)
+      do iCell = 1, nCellsOwned
+        invAreaCell = 1.0_RKIND / areaCell(iCell)
+!$acc loop seq
+        do i = 1, nEdgesOnCell(iCell)
+          iEdge = edgesOnCell(i, iCell)
+!$acc loop vector private(flux)
+          do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
+            flux = normalVelocity(k, iEdge) * dvEdge(iEdge) * layerThickEdgeFlux(k, iEdge)
+            tend(k, iCell) = tend(k, iCell) + edgeSignOnCell(i, iCell) * flux * invAreaCell
+          end do
+        end do
+      end do
+!$acc end parallel
+      !$omp end do
+      !$omp end parallel
+
+!$acc end data
+
+      call mpas_timer_stop("thick hadv gpu")
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_thick_hadv_tend_gpu!}}}
 
 !***********************************************************************
 !

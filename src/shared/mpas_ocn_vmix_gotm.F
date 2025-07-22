@@ -51,6 +51,7 @@ module ocn_vmix_gotm
    !--------------------------------------------------------------------
 
    public :: ocn_vmix_coefs_gotm_build, &
+             ocn_vmix_coefs_gotm_build_gpu, &
              ocn_vmix_gotm_init,        &
              ocn_vmix_gotm_finalize
 
@@ -313,6 +314,238 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_vmix_coefs_gotm_build!}}}
+
+   subroutine ocn_vmix_coefs_gotm_build_gpu(statePool, forcingPool, err, timeLevelIn)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(in), optional ::     &
+         timeLevelIn !< Input: time level for state pool
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(inout) :: &
+         statePool         !< Input/Output: state information
+
+      type (mpas_pool_type), intent(inout) :: &
+         forcingPool   !< Input/Output: forcing information
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), pointer :: &
+        normalVelocity, layerThickness, &
+        gotmVertViscTopOfCellCur, gotmVertDiffTopOfCellCur, &
+        gotmTKETopOfCellCur, gotmDissTopOfCellCur, gotmLengthTopOfCellCur, &
+        gotmKbTopOfCellCur, gotmEpsbTopOfCellCur, &
+        gotmVertViscTopOfCellNew, gotmVertDiffTopOfCellNew, &
+        gotmTKETopOfCellNew, gotmDissTopOfCellNew, gotmLengthTopOfCellNew, &
+        gotmKbTopOfCellNew, gotmEpsbTopOfCellNew
+
+      integer :: i, iCell, iEdge, k, ki, timeLevel, nCells
+
+      real (kind=RKIND) :: invAreaCell, factor, delU2, bottomFrictionVelocity, waterDepth
+      real (kind=RKIND), dimension(:), allocatable :: &
+        shearSquaredTop, NSquaredTop, hLayer
+
+      !-----------------------------------------------------------------
+      !
+      ! call relevant routines for computing mixing-related fields
+      ! note that the user can choose multiple options and the
+      !   mixing fields have to be added/merged together
+      !
+      !-----------------------------------------------------------------
+
+      !
+      ! assume no errors during initialization and set to 1 when error is encountered
+      !
+      err=0
+
+      if (present(timeLevelIn)) then
+         timeLevel = timeLevelIn
+      else
+         timeLevel = 1
+      end if
+
+      !
+      ! only build up viscosity/diffusivity if GOTM is turned on
+      !
+      if ( .not. gotmOn ) return
+      write(*,*) "ocn_vmix_coefs_gotm_build_gpu gotmOn NOT EXECUTING"
+
+      !
+      ! set parameters
+      !
+      call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, timeLevel)
+      call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, timeLevel)
+
+      !
+      ! set pointers for GOTM viscosity/diffusivity, TKE, rate of dissipation and turbulent length scale
+      ! (current and new state)
+      !
+      call mpas_pool_get_array(statePool, 'gotmVertViscTopOfCell', gotmVertViscTopOfCellCur, 1)
+      call mpas_pool_get_array(statePool, 'gotmVertViscTopOfCell', gotmVertViscTopOfCellNew, 2)
+      call mpas_pool_get_array(statePool, 'gotmVertDiffTopOfCell', gotmVertDiffTopOfCellCur, 1)
+      call mpas_pool_get_array(statePool, 'gotmVertDiffTopOfCell', gotmVertDiffTopOfCellNew, 2)
+      call mpas_pool_get_array(statePool, 'gotmTKETopOfCell', gotmTKETopOfCellCur, 1)
+      call mpas_pool_get_array(statePool, 'gotmTKETopOfCell', gotmTKETopOfCellNew, 2)
+      call mpas_pool_get_array(statePool, 'gotmDissTopOfCell', gotmDissTopOfCellCur, 1)
+      call mpas_pool_get_array(statePool, 'gotmDissTopOfCell', gotmDissTopOfCellNew, 2)
+      call mpas_pool_get_array(statePool, 'gotmLengthTopOfCell', gotmLengthTopOfCellCur, 1)
+      call mpas_pool_get_array(statePool, 'gotmLengthTopOfCell', gotmLengthTopOfCellNew, 2)
+      call mpas_pool_get_array(statePool, 'gotmKbTopOfCell', gotmKbTopOfCellCur, 1)
+      call mpas_pool_get_array(statePool, 'gotmKbTopOfCell', gotmKbTopOfCellNew, 2)
+      call mpas_pool_get_array(statePool, 'gotmEpsbTopOfCell', gotmEpsbTopOfCellCur, 1)
+      call mpas_pool_get_array(statePool, 'gotmEpsbTopOfCell', gotmEpsbTopOfCellNew, 2)
+
+      nCells = nCellsAll
+
+      !$omp parallel
+      !$omp do schedule(runtime)
+      do iCell = 1, nCells
+         vertViscTopOfCell(:, iCell) = 0.0_RKIND
+         vertDiffTopOfCell(:, iCell) = 0.0_RKIND
+      end do
+      !$omp end do
+      !$omp end parallel
+
+      nCells = nCellsHalo( 2 )
+
+      ! allocate arrays for squared shear, squared buoyancy frequency and layer thickness
+      ! to be used in GOTM, the indices are in the GOTM order (bottom to top)
+      allocate(shearSquaredTop(0:nVertLevels))
+      allocate(NSquaredTop(0:nVertLevels))
+      allocate(hLayer(0:nVertLevels))
+
+      call mpas_timer_start('gotm cell loop gpu', .false.)
+
+      ! MDT, Mar 2021: Removed OpenMP directives because the subroutine
+      !                do_turbulence is not thread safe
+      do iCell = 1, nCells
+
+         ! initialize arrays
+         shearSquaredTop = 0.0_RKIND
+         NSquaredTop = 0.0_RKIND
+         hLayer = 0.0_RKIND
+
+         ! compute shear frequency squared
+         invAreaCell = 1.0_RKIND / areaCell(iCell)
+         do k = 1, maxLevelCell(iCell) - minLevelCell(iCell)
+            ki = maxLevelCell(iCell) - k + 1
+            do i = 1, nEdgesOnCell(iCell)
+               iEdge = edgesOnCell(i, iCell)
+               factor = 0.5_RKIND * dcEdge(iEdge) * dvEdge(iEdge) * invAreaCell
+               delU2 = (normalVelocity(ki-1,iEdge) - normalVelocity(ki,iEdge))**2
+               shearSquaredTop(k) = shearSquaredTop(k) + factor * delU2
+            end do
+            shearSquaredTop(k) = shearSquaredTop(k) / (zMid(ki-1,iCell) - zMid(ki,iCell))**2
+         end do
+         shearSquaredTop(0) = shearSquaredTop(1)
+         shearSquaredTop(maxLevelCell(iCell)-minLevelCell(iCell)+1) = shearSquaredTop(maxLevelCell(iCell)-minLevelCell(iCell))
+
+         ! fill arrays of the squared buoyancy frequency and layer thickness
+         ! and compute the water depth
+         waterDepth = 0.0_RKIND
+         do k = 1, maxLevelCell(iCell) - minLevelCell(iCell) + 1
+            ki = maxLevelCell(iCell) - k + 1
+            NSquaredTop(k) = BruntVaisalaFreqTop(ki,iCell)
+            hLayer(k) = layerThickness(ki,iCell)
+            waterDepth = waterDepth + layerThickness(ki,iCell)
+         end do
+
+         ! compute the bottom friction velocity
+         bottomFrictionVelocity = sqrt(2.0_RKIND * gotmBottomDragCoef *  &
+                                       kineticEnergyCell(maxLevelCell(iCell),iCell))
+
+         ! fill GOTM arrays with current values at iCell
+         do k = 0, maxLevelCell(iCell) - minLevelCell(iCell) + 1
+            ki = maxLevelCell(iCell) - k + 1
+            gotm_vertVisc(k) = gotmVertViscTopOfCellCur(ki, iCell)
+            gotm_vertDiffT(k) = gotmVertDiffTopOfCellCur(ki, iCell)
+            gotm_vertDiffS(k) = gotmVertDiffTopOfCellCur(ki, iCell)
+            gotm_TKE(k) = gotmTKETopOfCellCur(ki, iCell)
+            gotm_eps(k) = gotmDissTopOfCellCur(ki, iCell)
+            gotm_L(k) = gotmLengthTopOfCellCur(ki, iCell)
+            gotm_kb(k) = gotmKbTopOfCellCur(ki, iCell)
+            gotm_epsb(k) = gotmEpsbTopOfCellCur(ki, iCell)
+         end do
+
+         !
+         ! interface with do_turbulence():
+         !
+         !   subroutine do_turbulence(nlev,dt,depth,u_taus,u_taub,z0s,z0b,h,NN,SS,xP)
+         !
+         !   nlev          : number of vertical layers
+         !   dt            : time step (s)
+         !   depth         : water depth (m)
+         !   u_taus        : surface friction velocity (m/s)
+         !   u_taub        : bottom friction velocity (m/s)
+         !   z0s           : surface roughness length (m)
+         !   z0b           : bottom roughness length (m)
+         !   h             : layer thickness (m)
+         !   NN            : bouyancy frequency squared (1/s^2)
+         !   SS            : shear-frequency squared (1/s^2)
+         !   xP (optional) : extra TKE production due to, e.g., seagrass (m^2/s^3)
+         !
+         ! MPAS-O (1:nlev+1) <-> GOTM (nlev:0)
+         !
+         call do_turbulence(maxLevelCell(iCell) - minLevelCell(iCell) + 1,                &
+                            gotm_dt,                                                      &
+                            waterDepth,                                                   &
+                            surfaceFrictionVelocity(iCell),                               &
+                            bottomFrictionVelocity,                                       &
+                            gotmSurfaceRoughnessLength,                                   &
+                            gotmBottomRoughnessLength,                                    &
+                            hLayer(0:maxLevelCell(iCell)-minLevelCell(iCell)+1),          &
+                            NSquaredTop(0:maxLevelCell(iCell)-minLevelCell(iCell)+1),     &
+                            shearSquaredTop(0:maxLevelCell(iCell)-minLevelCell(iCell)+1))
+
+         ! update GOTM arrays for next time step
+         ! MPAS-O (1:nlev+1) <-> GOTM (nlev:0)
+         do k = minLevelCell(iCell), maxLevelCell(iCell)+1
+            ki = maxLevelCell(iCell) - k + 1
+            gotmVertViscTopOfCellNew(k, iCell) = gotm_vertVisc(ki)
+            gotmVertDiffTopOfCellNew(k, iCell) = gotm_vertDiffT(ki)
+            gotmTKETopOfCellNew(k, iCell) = gotm_TKE(ki)
+            gotmDissTopOfCellNew(k, iCell) = gotm_eps(ki)
+            gotmLengthTopOfCellNew(k, iCell) = gotm_L(ki)
+            gotmKbTopOfCellNew(k, iCell) = gotm_kb(ki)
+            gotmEpsbTopOfCellNew(k, iCell) = gotm_epsb(ki)
+            ! update viscosity/diffusivity
+            vertViscTopOfCell(k, iCell) = gotm_vertVisc(ki)
+            vertDiffTopOfCell(k, iCell) = gotm_vertDiffT(ki)
+         end do
+
+      end do
+
+      call mpas_timer_stop('gotm cell loop gpu')
+
+      deallocate(shearSquaredTop)
+      deallocate(NSquaredTop)
+      deallocate(hLayer)
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_vmix_coefs_gotm_build_gpu!}}}
 
 !***********************************************************************
 !

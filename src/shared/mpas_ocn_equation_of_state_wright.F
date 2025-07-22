@@ -46,6 +46,7 @@ module ocn_equation_of_state_wright
    !--------------------------------------------------------------------
 
    public :: ocn_equation_of_state_wright_density, &
+             ocn_equation_of_state_wright_density_gpu, &
              ocn_equation_of_state_wright_init
 
    !*** generic interface for case of density only or density and
@@ -53,6 +54,11 @@ module ocn_equation_of_state_wright
    interface ocn_equation_of_state_wright_density
       module procedure ocn_equation_of_state_wright_density_only
       module procedure ocn_equation_of_state_wright_density_exp
+   end interface
+
+   interface ocn_equation_of_state_wright_density_gpu
+      module procedure ocn_equation_of_state_wright_density_only_gpu
+      module procedure ocn_equation_of_state_wright_density_exp_gpu
    end interface
 
    !--------------------------------------------------------------------
@@ -197,7 +203,6 @@ contains
       allocate(tracerTemp(nVertLevels, nCells), &
                tracerSalt(nVertLevels, nCells), &
                boussinesqPres(nVertLevels, nCells))
-      !$acc enter data create(tracerTemp, tracerSalt, boussinesqPres)
 
       if (displacementType == 'surfaceDisplaced') then
          call compute_surface_displaced_T_S(nVertLevels, nCells, indexT,      &
@@ -212,15 +217,9 @@ contains
                                 displacementType, zMid, maxLevelCell, &
                                 boussinesqPres)
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop gang vector collapse(2) &
-      !$acc    present(density, tracerTemp, tracerSalt, &
-      !$acc            boussinesqPres)
-#else
       !$omp parallel
       !$omp do schedule(runtime) &
       !$omp private(k, S, T, p, T2, T3, p0, lambda0, alpha0)
-#endif
 
       do iCell=1,nCells
          do k=1,nVertLevels
@@ -241,17 +240,132 @@ contains
          end do
       end do
 
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
 
-      !$acc exit data delete(tracerTemp, tracerSalt, boussinesqPres)
       deallocate(tracerTemp, tracerSalt, boussinesqPres)
 
    !--------------------------------------------------------------------
 
    end subroutine ocn_equation_of_state_wright_density_only!}}}
+
+   subroutine ocn_equation_of_state_wright_density_only_gpu(nVertLevels,  &
+                               nCells, kDisplaced, displacementType,  &
+                               indexT, indexS, tracers, zMid,         &
+                               maxLevelCell, density, err, &
+                               tracersSurfaceLayerValue)
+
+   !{{{
+   !--------------------------------------------------------------------
+
+      !-----------------------------------------------------------------
+      ! Input variables
+      !-----------------------------------------------------------------
+
+      integer, intent(in) :: &
+         nCells,             &! number of horizontal cells
+         nVertLevels,        &! max number of verical levels
+         kDisplaced,         &! target layer for displacement
+         indexT,             &! temperature index in tracer array
+         indexS               ! salinity    index in tracer array
+
+      character(len=*), intent(in) :: &
+         displacementType     ! choice of displacement
+
+      real (kind=RKIND), dimension(:,:,:), intent(in) :: &
+         tracers              ! array of tracers including T,S
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         zMid
+
+      integer, dimension(:), intent(in) :: &
+         maxLevelCell
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         tracersSurfaceLayerValue
+
+      !-----------------------------------------------------------------
+      ! Output variables
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err  ! error flag
+
+      real (kind=RKIND), dimension(:,:), intent(out) :: &
+         density         ! computed density
+
+      !-----------------------------------------------------------------
+      ! Local variables
+      !-----------------------------------------------------------------
+
+
+      integer :: &
+         iCell, k ! cell and vertical level loop indices
+
+      real (kind=RKIND) :: &
+         T, S, T2, T3,     &! adjusted T, S, T squared, T cubed,
+         p,                &! Boussinesq pressure at reference level,
+         alpha0, lambda0,  &! functions of theta and S defined by Wright (1997)
+         p0
+
+      real (kind=RKIND), dimension(:,:), allocatable :: &
+         tracerTemp,    &! local bounded temperature for use in EOS
+         tracerSalt,    &! local bounded salinity    for use in EOS
+         boussinesqPres  ! boussinesq pressure
+
+      !-----------------------------------------------------------------
+
+      !*** initialize error flag
+
+      err = 0
+
+      allocate(tracerTemp(nVertLevels, nCells), &
+               tracerSalt(nVertLevels, nCells), &
+               boussinesqPres(nVertLevels, nCells))
+
+      if (displacementType == 'surfaceDisplaced') then
+         call compute_surface_displaced_T_S(nVertLevels, nCells, indexT,      &
+                                            indexS, tracersSurfaceLayerValue, &
+                                            tracerTemp, tracerSalt)
+      else
+         call compute_bounded_T_S(nVertLevels, nCells, indexT, indexS, tracers, &
+                                  tracerTemp, tracerSalt)
+      end if
+
+      call compute_boussinesq_p(nVertLevels, nCells, kDisplaced,      &
+                                displacementType, zMid, maxLevelCell, &
+                                boussinesqPres)
+
+      !$omp parallel
+      !$omp do schedule(runtime) &
+      !$omp private(k, S, T, p, T2, T3, p0, lambda0, alpha0)
+
+      do iCell=1,nCells
+         do k=1,nVertLevels
+
+            S = tracerSalt(k, iCell)
+            T = tracerTemp(k, iCell)
+            p = boussinesqPres(k, iCell)
+
+            T2 = T*T
+            T3 = T*T2
+
+            p0 = b0 + b1*T + b2*T2 + b3*T3 + b4*S + b5*T*S
+            lambda0 = c0 + c1*T + c2*T2 + c3*T3 + c4*S + c5*T*S
+            alpha0 = a0 + a1*T + a2*S
+
+            density(k, iCell) = (p + p0)/(lambda0 + alpha0*(p + p0))
+
+         end do
+      end do
+
+      !$omp end do
+      !$omp end parallel
+
+      deallocate(tracerTemp, tracerSalt, boussinesqPres)
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_equation_of_state_wright_density_only_gpu!}}}
 
 !***********************************************************************
 !
@@ -366,7 +480,6 @@ contains
       allocate(tracerTemp(nVertLevels, nCells), &
                tracerSalt(nVertLevels, nCells), &
                boussinesqPres(nVertLevels, nCells))
-      !$acc enter data create(tracerTemp, tracerSalt, boussinesqPres)
 
       if (displacementType == 'surfaceDisplaced') then
          call compute_surface_displaced_T_S(nVertLevels, nCells, indexT,      &
@@ -381,17 +494,11 @@ contains
                                 boussinesqPres)
 
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop gang vector collapse(2)     &
-      !$acc    present(density, tracerTemp, tracerSalt, boussinesqPres,& 
-      !$acc            thermalExpansionCoeff, salineContractionCoeff)
-#else
       !$omp parallel
       !$omp do schedule(runtime) &
       !$omp private(k, S, T, p, T2, T3, p0, dp0dT, dp0dS, lambda0, &
       !$omp         dlambda0dT, dlambda0dS, alpha0, dalpha0dT, &
       !$omp         dalpha0dS, denom, denom2, drhodT, drhodS)
-#endif
 
       do iCell=1,nCells
          do k=1,nVertLevels
@@ -430,17 +537,167 @@ contains
          end do
       end do
 
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
 
-      !$acc exit data delete(tracerTemp, tracerSalt, boussinesqPres)
       deallocate(tracerTemp, tracerSalt, boussinesqPres)
 
    !--------------------------------------------------------------------
 
    end subroutine ocn_equation_of_state_wright_density_exp!}}}
+
+   subroutine ocn_equation_of_state_wright_density_exp_gpu(nVertLevels,         &
+                               nCells, kDisplaced, displacementType,        &
+                               indexT, indexS, tracers, zMid, maxLevelCell, &
+                               density, err, thermalExpansionCoeff,         &
+                               salineContractionCoeff,                      &
+                               tracersSurfaceLayerValue)
+   !{{{
+   !--------------------------------------------------------------------
+
+      !-----------------------------------------------------------------
+      ! Input variables
+      !-----------------------------------------------------------------
+
+      integer, intent(in) :: &
+         nCells,             &! number of horizontal cells
+         nVertLevels,        &! max number of verical levels
+         kDisplaced,         &! target layer for displacement
+         indexT,             &! temperature index in tracer array
+         indexS               ! salinity    index in tracer array
+
+      character(len=*), intent(in) :: &
+         displacementType     ! choice of displacement
+
+      real (kind=RKIND), dimension(:,:,:), intent(in) :: &
+         tracers              ! array of tracers including T,S
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         zMid
+
+      integer, dimension(:), intent(in) :: &
+         maxLevelCell
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         tracersSurfaceLayerValue
+
+      !-----------------------------------------------------------------
+      ! Output variables
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err  ! error flag
+
+      real (kind=RKIND), dimension(:,:), intent(out) :: &
+         density         ! computed density
+
+      ! Thermal expansion coeff, $-1/\rho d\rho/dT$ (note negative sign)
+      ! Saline contraction coeff, $1/\rho d\rho/dS$
+      real (kind=RKIND), dimension(:,:), intent(out) :: &
+         thermalExpansionCoeff,  &! Thermal expansion  coeff (alpha)
+         salineContractionCoeff   ! Saline contraction coeff (beta)
+
+      !-----------------------------------------------------------------
+      ! Local variables
+      !-----------------------------------------------------------------
+
+      integer :: &
+         iCell, k ! cell and vertical level loop indices
+
+      real (kind=RKIND) :: &
+         T, S, T2, T3,     &! adjusted T, S, T squared, T cubed,
+         p,                &! Boussinesq pressure at reference level,
+         alpha0, lambda0,  &! functions of theta and S defined by Wright (1997)
+         p0,               &
+         denom, denom2,    &! denominator of rational polynomial for rho
+         dalpha0dT,        &! d(alpha0)/d(temperature)
+         dalpha0dS,        &! d(alpha0)/d(salinity)
+         dlambda0dT,       &! d(lambda0)/d(temperature)
+         dlambda0dS,       &! d(lambda0)/d(salinity)
+         dp0dT,            &! d(p0)/d(temperature)
+         dp0dS,            &! d(p0)/d(salinity)
+         drhodT,           &! derivative of density with respect to temperature
+         drhodS             ! derivative of density with respect to salinity
+
+      real (kind=RKIND), dimension(:,:), allocatable :: &
+         tracerTemp,    &! local bounded temperature for use in EOS
+         tracerSalt,    &! local bounded salinity    for use in EOS
+         boussinesqPres  ! boussinesq pressure
+
+      !-----------------------------------------------------------------
+
+      !*** initialize error flag
+
+      err = 0
+
+
+      allocate(tracerTemp(nVertLevels, nCells), &
+               tracerSalt(nVertLevels, nCells), &
+               boussinesqPres(nVertLevels, nCells))
+
+      if (displacementType == 'surfaceDisplaced') then
+         call compute_surface_displaced_T_S(nVertLevels, nCells, indexT,      &
+                                            indexS, tracersSurfaceLayerValue, &
+                                            tracerTemp, tracerSalt)
+      else
+         call compute_bounded_T_S(nVertLevels, nCells, indexT, indexS, tracers, &
+                                  tracerTemp, tracerSalt)
+      end if
+      call compute_boussinesq_p(nVertLevels, nCells, kDisplaced,      &
+                                displacementType, zMid, maxLevelCell, &
+                                boussinesqPres)
+
+
+      !$omp parallel
+      !$omp do schedule(runtime) &
+      !$omp private(k, S, T, p, T2, T3, p0, dp0dT, dp0dS, lambda0, &
+      !$omp         dlambda0dT, dlambda0dS, alpha0, dalpha0dT, &
+      !$omp         dalpha0dS, denom, denom2, drhodT, drhodS)
+
+      do iCell=1,nCells
+         do k=1,nVertLevels
+
+            S = tracerSalt(k, iCell)
+            T = tracerTemp(k, iCell)
+            p = boussinesqPres(k, iCell)
+
+            T2 = T*T
+            T3 = T*T2
+
+            p0 = b0 + b1*T + b2*T2 + b3*T3 + b4*S + b5*T*S
+            dp0dT = b1 + 2.0_RKIND*b2*T + 3.0_RKIND*b3*T2 + b5*S
+            dp0dS = b4 + b5*T
+
+            lambda0 = c0 + c1*T + c2*T2 + c3*T3 + c4*S + c5*T*S
+            dlambda0dT = c1 + 2.0_RKIND*c2*T + 3.0_RKIND*c3*T2 + c5*S
+            dlambda0dS = c4 + c5*T
+
+            alpha0 = a0 + a1*T + a2*S
+            dalpha0dT = a1
+            dalpha0dS = a2
+
+            denom = 1.0_RKIND/(lambda0 + alpha0*(p + p0))
+            denom2 = denom*denom
+
+            drhodT = (lambda0*dp0dT - &
+                      (p + p0)*(dlambda0dT + (p + p0)*dalpha0dT))*denom2
+            drhodS = (lambda0*dp0dS - &
+                      (p + p0)*(dlambda0dS + (p + p0)*dalpha0dS))*denom2
+
+            density(k, iCell) = (p + p0)*denom
+            thermalExpansionCoeff(k, iCell) = -drhodT/density(k, iCell)
+            salineContractionCoeff(k, iCell) = drhodS/density(k, iCell)
+
+         end do
+      end do
+
+      !$omp end do
+      !$omp end parallel
+
+      deallocate(tracerTemp, tracerSalt, boussinesqPres)
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_equation_of_state_wright_density_exp_gpu!}}}
 
 !***********************************************************************
 !
@@ -529,13 +786,8 @@ contains
       real (kind=RKIND) :: &
          T, S               ! adjusted T, S
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop gang vector collapse(2) &
-      !$acc    present(tracers, tracerTemp, tracerSalt)
-#else
       !$omp parallel
       !$omp do schedule(runtime) private(k, T, S)
-#endif
       do iCell=1,nCells
          do k = 1, nVertLevels
             T = min(tracers(indexT, k, iCell), ocnEqStateTmax)
@@ -544,10 +796,8 @@ contains
             tracerSalt(k, iCell) = max(S, ocnEqStateSmin)
          end do
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
 
    !--------------------------------------------------------------------
 
@@ -600,14 +850,8 @@ contains
       real (kind=RKIND) :: &
          T, S               ! adjusted T, S
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop gang vector collapse(2), &
-      !$acc    present(tracersSurfaceLayerValue, &
-      !$acc            tracerTemp, tracerSalt)
-#else
       !$omp parallel
       !$omp do schedule(runtime) private(k, T, S)
-#endif
       do iCell=1,nCells
          do k = 1, nVertLevels
             T = min(tracersSurfaceLayerValue(indexT, iCell), ocnEqStateTmax)
@@ -616,10 +860,8 @@ contains
             tracerSalt(k, iCell) = max(S, ocnEqStateSmin)
          end do
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
 
    !--------------------------------------------------------------------
 
@@ -686,13 +928,8 @@ contains
       if ((displacementType == 'relative') .or. &
           (displacementType == 'surfaceDisplaced')) then
 
-#ifdef MPAS_OPENACC
-         !$acc parallel loop gang vector collapse(2) &
-         !$acc    present(boussinesqPres, maxLevelCell, zMid)
-#else
          !$omp parallel
          !$omp do schedule(runtime) private(k, kPressure)
-#endif
          do iCell=1,nCells
             do k = 1, nVertLevels
                kPressure = min(k + kDisplaced, maxLevelCell(iCell))
@@ -701,28 +938,20 @@ contains
                                            zMid(kPressure, iCell)
             end do
          end do
-#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-#endif
 
       else ! displacementType == 'absolute'
 
-#ifdef MPAS_OPENACC
-         !$acc parallel loop collapse(2) present(boussinesqPres)
-#else
          !$omp parallel
          !$omp do schedule(runtime) private(k)
-#endif
          do iCell=1,nCells
             do k = 1, nVertLevels
                boussinesqPres(k, iCell) = eos_wright_ref_pressure
             end do
          end do
-#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-#endif
 
       endif
 

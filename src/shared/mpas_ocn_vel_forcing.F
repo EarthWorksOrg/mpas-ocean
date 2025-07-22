@@ -45,6 +45,7 @@ module ocn_vel_forcing
    !--------------------------------------------------------------------
 
    public :: ocn_vel_forcing_tend, &
+             ocn_vel_forcing_tend_gpu, &
              ocn_vel_forcing_init
 
    !--------------------------------------------------------------------
@@ -134,6 +135,66 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_vel_forcing_tend!}}}
+
+   subroutine ocn_vel_forcing_tend_gpu(normalVelocity, sfcFlxAttCoeff, &
+                                   surfaceStress, kineticEnergyCell, &
+                                   layerThickEdgeMean, tend, err)!{{{
+
+      !-----------------------------------------------------------------
+      ! input variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         normalVelocity,    &!< [in] Normal velocity at edges
+         kineticEnergyCell, &!< [in] kinetic energy at cell
+         layerThickEdgeMean  !< [in] mean thickness at edge
+
+      real (kind=RKIND), dimension(:), intent(in) :: &
+         sfcFlxAttCoeff, &!< [in] attenuation coefficient for sfc fluxes
+         surfaceStress    !< [in] surface stress at edges
+
+      !-----------------------------------------------------------------
+      ! input/output variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         tend            !< [inout] accumulated velocity tendency
+
+      !-----------------------------------------------------------------
+      ! output variables
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< [out] error flag
+
+      !-----------------------------------------------------------------
+      ! local variables
+      !-----------------------------------------------------------------
+
+      integer :: err1 ! local error flag
+
+      ! End preamble
+      !-----------------------------------------------------------------
+      ! Begin code
+
+      !*** initialize error flag, then call individual forcing routines
+
+      err = 0
+
+      call ocn_vel_forcing_surface_stress_tend_gpu(sfcFlxAttCoeff, &
+                   surfaceStress, layerThickEdgeMean, tend, err1)
+      err = ior(err, err1)
+
+      call ocn_vel_forcing_explicit_bottom_drag_tend_gpu(normalVelocity, &
+                   kineticEnergyCell, layerThickEdgeMean, tend, err1)
+      err = ior(err, err1)
+
+      call ocn_vel_forcing_topographic_wave_drag_tend_gpu(normalVelocity, &
+                   tend, err1)
+
+      err = ior(err, err1)
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_vel_forcing_tend_gpu!}}}
 
 !***********************************************************************
 !

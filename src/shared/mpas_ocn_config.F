@@ -26,6 +26,13 @@ module ocn_config
    save
 
 #include "../inc/config_declare.inc"
+   real (kind=RKIND) :: mod_lic_coeff_0, mod_lic_coeff_S, mod_lic_coeff_p, mod_lic_coeff_pS
+   real (kind=RKIND) :: mod_oo_coeff_0, mod_oo_coeff_S, mod_oo_coeff_p, mod_oo_coeff_pS,mod_oo_az1_liq
+   integer :: mod_jerlov_water_type
+
+!$acc declare create(mod_lic_coeff_0,mod_lic_coeff_S,mod_lic_coeff_p,mod_lic_coeff_pS,&
+!$acc                mod_oo_coeff_0,mod_oo_coeff_S,mod_oo_coeff_p,mod_oo_coeff_pS,mod_oo_az1_liq,&
+!$acc                mod_jerlov_water_type)
 
 !***********************************************************************
 
@@ -44,6 +51,20 @@ contains
        type (mpas_pool_type), pointer :: configPool
 
 #include "../inc/config_get.inc"
+       mod_lic_coeff_0 = config_land_ice_cavity_freezing_temperature_coeff_0
+       mod_lic_coeff_S = config_land_ice_cavity_freezing_temperature_coeff_S
+       mod_lic_coeff_p = config_land_ice_cavity_freezing_temperature_coeff_p
+       mod_lic_coeff_pS = config_land_ice_cavity_freezing_temperature_coeff_pS
+       mod_oo_coeff_0 = config_open_ocean_freezing_temperature_coeff_0
+       mod_oo_coeff_S = config_open_ocean_freezing_temperature_coeff_S
+       mod_oo_coeff_p = config_open_ocean_freezing_temperature_coeff_p
+       mod_oo_coeff_pS = config_open_ocean_freezing_temperature_coeff_pS
+       mod_oo_az1_liq = config_open_ocean_freezing_temperature_coeff_mushy_az1_liq
+       mod_jerlov_water_type = config_jerlov_water_type
+
+!$acc update device(mod_lic_coeff_0,mod_lic_coeff_S,mod_lic_coeff_p,mod_lic_coeff_pS,&
+!$acc               mod_oo_coeff_0,mod_oo_coeff_S,mod_oo_coeff_p,mod_oo_coeff_pS,mod_oo_az1_liq,&
+!$acc               mod_jerlov_water_type)
 
    end subroutine ocn_config_init!}}}
 
