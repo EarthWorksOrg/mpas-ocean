@@ -31,9 +31,12 @@ module ocn_vmix
    use ocn_constants
    use ocn_config
    use ocn_vmix_cvmix
-   use ocn_vmix_gotm
    use ocn_vmix_coefs_redi
    use ocn_diagnostics_variables
+
+#ifdef USE_GOTM
+   use ocn_vmix_gotm
+#endif
 
    implicit none
    private
@@ -189,7 +192,11 @@ contains
 
       call ocn_vmix_coefs_cvmix_build(meshPool, statePool, forcingPool, err1, timeLevel)
       call ocn_vmix_coefs_redi_build(meshPool, statePool, err2, timeLevel)
+#ifdef USE_GOTM
       call ocn_vmix_coefs_gotm_build(statePool, forcingPool, err3, timeLevel)
+#else
+      err3 = 0
+#endif
 
       err = ior(ior(err1, err2), err3)
 
@@ -1570,8 +1577,10 @@ contains
 
       call ocn_vmix_cvmix_init(domain,err_tmp)
       err = ior(err, err_tmp)
+#ifdef USE_GOTM
       call ocn_vmix_gotm_init(domain,err_tmp)
       err = ior(err, err_tmp)
+#endif
       call ocn_vmix_coefs_redi_init(err_tmp)
       err = ior(err, err_tmp)
 

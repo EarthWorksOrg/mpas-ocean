@@ -8,10 +8,15 @@ endif
 FRAMEWORK_DIR = ../../../mpas-framework/src
 OCEAN_SHARED_INCLUDES = -I$(FRAMEWORK_DIR)/framework -I$(FRAMEWORK_DIR)/external/esmf_time_f90 -I$(FRAMEWORK_DIR)/operators
 OCEAN_SHARED_INCLUDES += -I$(PWD)/shared -I$(PWD)/analysis_members -I$(PWD)/mode_forward -I$(PWD)/mode_analysis
-OCEAN_SHARED_INCLUDES += -I$(PWD)/BGC -I$(PWD)/cvmix/src/shared -I$(PWD)/gotm/build -I$(PWD)/gotm/build/modules
+OCEAN_SHARED_INCLUDES += -I$(PWD)/BGC -I$(PWD)/cvmix/src/shared
 ifneq "$(EXCLUDE_INIT_MODE)" "true"
 	OCEAN_SHARED_INCLUDES += -I$(PWD)/mode_init
 endif
+
+ifeq "$(USE_GOTM)" "true"
+	OCEAN_SHARED_INCLUDES += -I$(PWD)/gotm/build -I$(PWD)/gotm/build/modules
+endif
+
 
 GOTM_CMAKE_FLAGS = -DGOTM_BUILD_LIBRARIES_ONLY=true -DGOTM_USE_FABM=false -DGOTM_USE_NetCDF=false -DCMAKE_Fortran_COMPILER="$(FC)" -DCMAKE_Fortran_FLAGS="$(FFLAGS)"
 ifeq "$(DEBUG)" "true"
@@ -80,15 +85,21 @@ libBGC:
 	fi
 
 libgotm:
-	if [ -e gotm/.git ]; then \
-		if [ -e gotm/build/Makefile ]; then \
-			(cd gotm/build; make) \
+	if [ "$(USE_GOTM)" = "true" ]; then \
+		echo "USE_GOTM is set, compiling gotm"; \
+		if [ -e gotm/.git ]; then \
+			if [ -e gotm/build/Makefile ]; then \
+				(echo "Compiling gotm with existing Makefile"; cd gotm/build; make) \
+			else \
+				(echo "Compiling gotm with cmake"; cd gotm/build; cmake ../src $(GOTM_CMAKE_FLAGS); make) \
+			fi \
 		else \
-			(cd gotm/build; cmake ../src $(GOTM_CMAKE_FLAGS); make) \
+			(pwd ; echo "Missing mpas-ocean/src/gotm/.git, did you forget to 'git submodule update --init --recursive' ?"; exit 1) \
 		fi \
 	else \
-		(pwd ; echo "Missing mpas-ocean/src/gotm/.git, did you forget to 'git submodule update --init --recursive' ?"; exit 1) \
+		echo "USE_GOTM is not set, skipping gotm compilation"; \
 	fi
+
 
 shared: libcvmix libBGC libgotm
 	(cd shared; $(MAKE) FCINCLUDES="$(FCINCLUDES) $(OCEAN_SHARED_INCLUDES)")
