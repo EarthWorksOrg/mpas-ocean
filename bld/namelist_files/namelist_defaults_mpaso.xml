@@ -29,7 +29,7 @@
 <config_proc_decomp_file_prefix>'graph.info.part.'</config_proc_decomp_file_prefix>
 
 <!-- time_integration -->
-<config_dt ocn_grid="oQU480">'02:00:00'</config_dt>
+<config_dt ocn_grid="oQU480">'00:30:00'</config_dt>
 <config_dt ocn_grid="oQU240">'01:00:00'</config_dt>
 <config_dt ocn_grid="oQU240wLI">'02:00:00'</config_dt>
 <config_dt ocn_grid="oQU120">'00:30:00'</config_dt>
@@ -295,7 +295,7 @@
 <config_cvmix_kpp_stop_OBL_search>100.0</config_cvmix_kpp_stop_OBL_search>
 <config_cvmix_kpp_use_enhanced_diff>.true.</config_cvmix_kpp_use_enhanced_diff>
 <config_cvmix_kpp_nonlocal_with_implicit_mix>.false.</config_cvmix_kpp_nonlocal_with_implicit_mix>
-<config_cvmix_kpp_use_theory_wave>.false.</config_cvmix_kpp_use_theory_wave>
+<config_cvmix_kpp_use_theory_wave>.true.</config_cvmix_kpp_use_theory_wave>
 <config_cvmix_kpp_langmuir_mixing_opt>'NONE'</config_cvmix_kpp_langmuir_mixing_opt>
 <config_cvmix_kpp_langmuir_entrainment_opt>'NONE'</config_cvmix_kpp_langmuir_entrainment_opt>
 <config_cvmix_kpp_use_active_wave>.false.</config_cvmix_kpp_use_active_wave>

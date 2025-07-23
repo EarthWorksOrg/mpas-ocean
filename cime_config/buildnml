@@ -111,16 +111,6 @@ def buildnml(case, caseroot, compname):
             logger.warning("WARNING: The specified compset is requesting ocean ICs spunup from a G-case")
             logger.warning("         But no file available for this grid.")
 
-    elif ocn_grid == 'oQU480':
-        decomp_date = '151209'
-        decomp_prefix = 'mpas-o.graph.info.'
-        ic_date = '220131'
-        ic_prefix = 'ocean.QU.480km'
-        din_loc_tem = '/glade/p/univ/ucsu0085/inputdata'
-        if ocn_ic_mode == 'spunup':
-            logger.warning("WARNING: The specified compset is requesting ocean ICs spunup from a G-case")
-            logger.warning("         But no file available for this grid.")
-
     elif ocn_grid == 'oQU240':
         decomp_date = 'QU240'
         decomp_prefix = 'mpas-o.graph.info.'
@@ -141,6 +131,17 @@ def buildnml(case, caseroot, compname):
             logger.warning("WARNING: The specified compset is requesting ocean ICs spunup from a G-case")
             logger.warning("         But no file available for this grid.")
 
+    elif ocn_grid == 'oQU480':
+        decomp_date = '250721'
+        decomp_prefix = 'mpas-o.graph.info.QU480.'
+        restoring_file = 'sss.monthlyClimatology_250721.oQU480.nc'
+        analysis_mask_file = 'QU480_mocBasinsAndTransects20250721.nc'
+        ic_date = '250721'
+        ic_prefix = 'ocean.QU.480km'
+        if ocn_ic_mode == 'spunup':
+            logger.warning("WARNING: The specified compset is requesting ocean ICs spunup from a G-case")
+            logger.warning("         But no file available for this grid.")
+
     elif ocn_grid == 'oQU120':
         decomp_date = '230524'
         decomp_prefix = 'mpas-o.graph.info.QU120.'
@@ -153,11 +154,11 @@ def buildnml(case, caseroot, compname):
             logger.warning("         But no file available for this grid.")
 
     elif ocn_grid == 'oQU060':
-        decomp_date = '230907'
+        decomp_date = '241221'
         decomp_prefix = 'mpas-o.graph.info.QU060.'
-        restoring_file = 'sss.monthlyClimatology_230624.oQU060.nc'
-        analysis_mask_file = 'QU60_mocBasinsAndTransects20210623.nc'
-        ic_date = '230907'
+        restoring_file = 'sss.monthlyClimatology_241221.oQU060.nc'
+        analysis_mask_file = 'QU60_mocBasinsAndTransects20241221.nc'
+        ic_date = '241221'
         ic_prefix = 'ocean.QU.060km'
         if ocn_ic_mode == 'spunup':
             logger.warning("WARNING: The specified compset is requesting ocean ICs spunup from a G-case")
