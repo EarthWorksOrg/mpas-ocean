@@ -10,3 +10,9 @@
         fxrequired = AlwaysRequired
         fxtag = marbl0.39.1
 	fxDONOTUSEurl = https://github.com/E3SM-Project/MARBL.git
+[submodule "src/cvmix"]
+	path = src/cvmix
+	url = https://github.com/CVMix/CVMix-src
+        fxrequired = AlwaysRequired
+        fxtag = v0.99-beta
+	fxDONOTUSEurl = https://github.com/CVMix/CVMix-src.git

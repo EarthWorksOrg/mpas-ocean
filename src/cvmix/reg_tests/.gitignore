@@ -1,5 +1,0 @@
-# Ignore plots and output files in all subdirectories
-*.ps
-*.pdf
-*.out
-*.nc
