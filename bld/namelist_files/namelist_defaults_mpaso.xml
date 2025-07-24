@@ -30,15 +30,14 @@
 
 <!-- time_integration -->
 <config_dt ocn_grid="oQU480">'00:30:00'</config_dt>
-<config_dt ocn_grid="oQU240">'01:00:00'</config_dt>
-<config_dt ocn_grid="oQU240wLI">'02:00:00'</config_dt>
+<config_dt ocn_grid="oQU240">'00:30:00'</config_dt>
 <config_dt ocn_grid="oQU120">'00:30:00'</config_dt>
-<config_dt ocn_grid="oQU060">'00:15:00'</config_dt>
-<config_dt ocn_grid="oQU030">'00:07:30'</config_dt>
-<config_dt ocn_grid="oQU015">'00:04:00'</config_dt>
-<config_dt ocn_grid="oQU0075">'00:02:00'</config_dt>
-<config_dt ocn_grid="oQU00375">'00:01:00'</config_dt>
-<config_dt ocn_grid="oRR60-3WUS">'00:01:00'</config_dt>
+<config_dt ocn_grid="oQU060">'00:30:00'</config_dt>
+<config_dt ocn_grid="oQU030">'00:15:00'</config_dt>
+<config_dt ocn_grid="oQU015">'00:07:30'</config_dt>
+<config_dt ocn_grid="oQU0075">'00:03:45'</config_dt>
+<config_dt ocn_grid="oQU00375">'00:02:00'</config_dt>
+<config_dt ocn_grid="oRR60-3WUS">'00:02:00'</config_dt>
 <config_dt ocn_grid="oEC60to30v3">'00:30:00'</config_dt>
 <config_dt ocn_grid="oEC60to30v3wLI">'00:30:00'</config_dt>
 <config_dt ocn_grid="ECwISC30to60E1r2">'00:30:00'</config_dt>
@@ -207,7 +206,7 @@
 <config_GM_closure ocn_grid="WCAtl12to45E2r4">'constant'</config_GM_closure>
 <config_GM_closure ocn_grid="SOwISC12to60E2r4">'N2_dependent'</config_GM_closure>
 <config_GM_closure ocn_grid="ECwISC30to60E2r1">'N2_dependent'</config_GM_closure>
-<config_GM_closure ocn_forcing="datm_forced_restoring">'visbeck</config_GM_closure>
+<config_GM_closure ocn_forcing="datm_forced_restoring">'visbeck'</config_GM_closure>
 <config_GM_constant_kappa>900.0</config_GM_constant_kappa>
 <config_GM_constant_kappa ocn_forcing="datm_forced_restoring" ocn_grid="oEC60to30v3wLI">600.0</config_GM_constant_kappa>
 <config_GM_constant_kappa ocn_forcing="datm_forced_restoring" ocn_grid="ECwISC30to60E1r2">600.0</config_GM_constant_kappa>
