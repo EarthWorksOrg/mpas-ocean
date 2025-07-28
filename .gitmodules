@@ -8,5 +8,5 @@
 	path = src/MARBL
 	url = https://github.com/E3SM-Project/MARBL.git
         fxrequired = AlwaysRequired
-        fxtag = stable
+        fxtag = marbl0.39.1
 	fxDONOTUSEurl = https://github.com/E3SM-Project/MARBL.git
