@@ -363,6 +363,7 @@ contains
       logical, pointer :: tempLogicalConfig
       character(len=StrKIND), pointer :: tempCharConfig
       real (kind=RKIND) :: dt
+      integer, save :: domainID = 0
 
      ! Added for coupling interval initialization
       integer, pointer :: index_avgZonalSSHGradient, index_avgMeridionalSSHGradient
@@ -483,6 +484,9 @@ contains
 
     ! Write to ocnLogUnit here, because the log module is not open yet.
     if (iam==0) write(ocnLogUnit,'(a,i6)') '=== Beginning InitializeRealize for ocn: rank=',iam
+
+    domain_ptr % domainID = domainID
+    domainID = domainID + 1
 
     call mpas_framework_init_phase1(domain_ptr % dminfo, lmpicom)
     
