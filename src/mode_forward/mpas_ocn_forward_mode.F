@@ -90,7 +90,7 @@ module ocn_forward_mode
    use ocn_equation_of_state
 
    use ocn_vmix
-   use ocn_vmix_gotm, only: ocn_vmix_gotm_finalize
+   !use ocn_vmix_gotm, only: ocn_vmix_gotm_finalize
 
    use ocn_vertical_advection
    use ocn_vertical_remap, only: ocn_vertical_remap_init
@@ -876,7 +876,7 @@ module ocn_forward_mode
 
       call ocn_analysis_finalize(domain, ierr)
 
-      call ocn_vmix_gotm_finalize(domain, ierr)
+      !call ocn_vmix_gotm_finalize(domain, ierr)
 
       call ocn_submesoscale_finalize()
 
