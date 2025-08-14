@@ -303,13 +303,6 @@
 <config_use_active_wave>.false.</config_use_active_wave>
 <config_n_stokes_drift_wavenumber_partitions>6</config_n_stokes_drift_wavenumber_partitions>
 
-<!-- gotm -->
-<config_use_gotm>.false.</config_use_gotm>
-<config_gotm_namelist_file>'gotmturb.nml'</config_gotm_namelist_file>
-<config_gotm_constant_surface_roughness_length>0.02</config_gotm_constant_surface_roughness_length>
-<config_gotm_constant_bottom_roughness_length>0.0015</config_gotm_constant_bottom_roughness_length>
-<config_gotm_constant_bottom_drag_coeff>1.e-3</config_gotm_constant_bottom_drag_coeff>
-
 <!-- forcing -->
 <config_use_variable_drag>.false.</config_use_variable_drag>
 <config_use_bulk_wind_stress>.true.</config_use_bulk_wind_stress>

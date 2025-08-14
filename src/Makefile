@@ -8,17 +8,12 @@ endif
 FRAMEWORK_DIR = ../../../mpas-framework/src
 OCEAN_SHARED_INCLUDES = -I$(FRAMEWORK_DIR)/framework -I$(FRAMEWORK_DIR)/external/esmf_time_f90 -I$(FRAMEWORK_DIR)/operators
 OCEAN_SHARED_INCLUDES += -I$(PWD)/shared -I$(PWD)/analysis_members -I$(PWD)/mode_forward -I$(PWD)/mode_analysis
-OCEAN_SHARED_INCLUDES += -I$(PWD)/BGC -I$(PWD)/cvmix/src/shared -I$(PWD)/gotm/build -I$(PWD)/gotm/build/modules
+OCEAN_SHARED_INCLUDES += -I$(PWD)/BGC -I$(PWD)/cvmix/src/shared 
 ifneq "$(EXCLUDE_INIT_MODE)" "true"
 	OCEAN_SHARED_INCLUDES += -I$(PWD)/mode_init
 endif
 
-GOTM_CMAKE_FLAGS = -DGOTM_BUILD_LIBRARIES_ONLY=true -DGOTM_USE_FABM=false -DGOTM_USE_NetCDF=false -DCMAKE_Fortran_COMPILER="$(FC)" -DCMAKE_Fortran_FLAGS="$(FFLAGS)"
-ifeq "$(DEBUG)" "true"
-	GOTM_CMAKE_FLAGS += -DCMAKE_BUILD_TYPE=Debug
-endif
-
-all: shared libcvmix analysis_members libBGC libgotm
+all: shared libcvmix analysis_members libBGC
 	(cd mode_forward; $(MAKE) FCINCLUDES="$(FCINCLUDES) $(OCEAN_SHARED_INCLUDES)" all )
 	(cd mode_analysis; $(MAKE) FCINCLUDES="$(FCINCLUDES) $(OCEAN_SHARED_INCLUDES)" all )
 ifneq "$(EXCLUDE_INIT_MODE)" "true"
@@ -79,21 +74,10 @@ libBGC:
 		(echo "Missing mpas-ocean/src/BGC/.git, did you forget to 'git submodule update --init --recursive' ?"; exit 1) \
 	fi
 
-libgotm:
-	if [ -e gotm/.git ]; then \
-		if [ -e gotm/build/Makefile ]; then \
-			(cd gotm/build; make) \
-		else \
-			(cd gotm/build; cmake ../src $(GOTM_CMAKE_FLAGS); make) \
-		fi \
-	else \
-		(pwd ; echo "Missing mpas-ocean/src/gotm/.git, did you forget to 'git submodule update --init --recursive' ?"; exit 1) \
-	fi
-
-shared: libcvmix libBGC libgotm
+shared: libcvmix libBGC
 	(cd shared; $(MAKE) FCINCLUDES="$(FCINCLUDES) $(OCEAN_SHARED_INCLUDES)")
 
-analysis_members: libcvmix shared libgotm
+analysis_members: libcvmix shared
 	( cd analysis_members; $(MAKE) FCINCLUDES="$(FCINCLUDES) $(OCEAN_SHARED_INCLUDES)" CPPFLAGS="$(CPPFLAGS)" CPPINCLUDES="$(CPPINCLUDES)" all )
 
 clean:
@@ -105,9 +89,6 @@ clean:
 	fi
 	if [ -e BGC/.git ]; then \
 		(cd BGC; make clean) \
-	fi
-	if [ -e gotm/.git ]; then \
-		(cd gotm; git clean -dfx) \
 	fi
 	(cd mode_forward; $(MAKE) clean)
 	(cd mode_analysis; $(MAKE) clean)
