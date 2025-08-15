@@ -16,3 +16,6 @@
         fxrequired = AlwaysRequired
         fxtag = master
 	fxDONOTUSEurl = https://github.com/CVMix/CVMix-src.git
+[submodule "cvmix"]
+	path = src/cvmix
+	url = https://github.com/CVMix/CVMix-src
