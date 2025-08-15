@@ -14,5 +14,8 @@
 	path = src/cvmix
 	url = https://github.com/CVMix/CVMix-src
         fxrequired = AlwaysRequired
-        fxtag = v1.0.0
+        fxtag = master
 	fxDONOTUSEurl = https://github.com/CVMix/CVMix-src.git
+[submodule "cvmix"]
+	path = src/cvmix
+	url = https://github.com/CVMix/CVMix-src
