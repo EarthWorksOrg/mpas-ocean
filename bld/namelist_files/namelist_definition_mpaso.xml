@@ -1138,49 +1138,6 @@ Default: Defined in namelist_defaults.xml
 </entry>
 
 
-<!-- gotm -->
-
-<entry id="config_use_gotm" type="logical"
-	category="gotm" group="gotm">
-If true, use the General Ocean Turbulence Model routines to compute vertical diffusivity and viscosity
-
-Valid values: True or False
-Default: Defined in namelist_defaults.xml
-</entry>
-
-<entry id="config_gotm_namelist_file" type="char*1024"
-	category="gotm" group="gotm">
-File name of GOTM turbulence namelist
-
-Valid values: gotmturb.nml
-Default: Defined in namelist_defaults.xml
-</entry>
-
-<entry id="config_gotm_constant_surface_roughness_length" type="real"
-	category="gotm" group="gotm">
-The constant surface roughness length scale.
-
-Valid values: Any positive real number.
-Default: Defined in namelist_defaults.xml
-</entry>
-
-<entry id="config_gotm_constant_bottom_roughness_length" type="real"
-	category="gotm" group="gotm">
-The constant bottom roughness length scale.
-
-Valid values: Any positive real number.
-Default: Defined in namelist_defaults.xml
-</entry>
-
-<entry id="config_gotm_constant_bottom_drag_coeff" type="real"
-	category="gotm" group="gotm">
-The constant bottom drag coefficient.
-
-Valid values: Any positive real number.
-Default: Defined in namelist_defaults.xml
-</entry>
-
-
 <!-- forcing -->
 
 <entry id="config_use_variable_drag" type="logical"

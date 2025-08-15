@@ -31,7 +31,6 @@ module ocn_vmix
    use ocn_constants
    use ocn_config
    use ocn_vmix_cvmix
-   use ocn_vmix_gotm
    use ocn_vmix_coefs_redi
    use ocn_diagnostics_variables
 
@@ -189,7 +188,6 @@ contains
 
       call ocn_vmix_coefs_cvmix_build(meshPool, statePool, forcingPool, err1, timeLevel)
       call ocn_vmix_coefs_redi_build(meshPool, statePool, err2, timeLevel)
-      call ocn_vmix_coefs_gotm_build(statePool, forcingPool, err3, timeLevel)
 
       err = ior(ior(err1, err2), err3)
 
@@ -1335,40 +1333,6 @@ contains
          call mpas_timer_stop('CVMix avg')
       endif
 
-      ! if using GOTM, then viscosity has to be averaged from cell centers to cell edges
-      if ( config_use_gotm ) then
-
-         call mpas_timer_start('GOTM avg', .false.)
-#ifdef MPAS_OPENACC
-         !$acc parallel loop present(cellsOnEdge, minLevelEdgeBot, maxLevelEdgeTop, &
-         !$acc    vertViscTopOfCell, vertViscTopOfEdge) &
-         !$acc    private(cell1, cell2, k, Nsurf, N)
-#else
-         !$omp do schedule(runtime) private(cell1, cell2, k, Nsurf, N)
-#endif
-         do iEdge=1,nEdgesOwned
-            Nsurf = minLevelEdgeBot(iEdge)
-            N = maxLevelEdgeTop(iEdge)
-            vertViscTopOfEdge(1:Nsurf-1, iEdge) = 0.0_RKIND
-            vertViscTopOfEdge(N+1:nVertLevels, iEdge) = 0.0_RKIND
-            cell1 = cellsOnEdge(1,iEdge)
-            cell2 = cellsOnEdge(2,iEdge)
-#ifdef MPAS_OPENACC
-            !$acc loop vector
-#endif
-            do k=Nsurf, N
-               vertViscTopOfEdge(k,iEdge) = 0.5_RKIND*(vertViscTopOfCell(k,cell2)+vertViscTopOfCell(k,cell1))
-            end do
-         end do
-#ifndef MPAS_OPENACC
-         !$omp end do
-#endif
-         call mpas_timer_stop('GOTM avg')
-      endif
-#ifdef MPAS_OPENACC
-      !$acc update host(vertViscTopOfEdge)
-#endif
-
       !
       !  Implicit vertical solve for momentum
       !
@@ -1569,8 +1533,6 @@ contains
       endif
 
       call ocn_vmix_cvmix_init(domain,err_tmp)
-      err = ior(err, err_tmp)
-      call ocn_vmix_gotm_init(domain,err_tmp)
       err = ior(err, err_tmp)
       call ocn_vmix_coefs_redi_init(err_tmp)
       err = ior(err, err_tmp)

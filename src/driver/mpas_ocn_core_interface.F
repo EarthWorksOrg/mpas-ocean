@@ -134,7 +134,6 @@ module ocn_core_interface
       logical, pointer :: submesoActive
       logical, pointer :: timeVaryingAtmosphericForcingPKGActive
       logical, pointer :: timeVaryingLandIceForcingPKGActive
-      logical, pointer :: gotmPKGActive
       logical, pointer :: verticalRemapPKGActive
       logical, pointer :: activeWavePKGActive
 
@@ -170,7 +169,6 @@ module ocn_core_interface
       logical, pointer :: config_use_vegetation_drag
       logical, pointer :: config_use_time_varying_atmospheric_forcing
       logical, pointer :: config_use_time_varying_land_ice_forcing
-      logical, pointer :: config_use_gotm
       logical, pointer :: config_use_active_wave
 
       character (len=StrKIND), pointer :: config_time_integrator
@@ -394,15 +392,6 @@ module ocn_core_interface
       if (config_use_time_varying_land_ice_forcing) then
          timeVaryingLandIceForcingPKGActive = .true.
       endif
-
-      !
-      ! test for use of GOTM
-      !
-      call mpas_pool_get_package(packagePool, 'gotmPKGActive', gotmPKGActive)
-      call mpas_pool_get_config(configPool, 'config_use_gotm', config_use_gotm)
-      if (config_use_gotm) then
-         gotmPKGActive = .true.
-      end if
 
       !
       ! test for use of vertical remapping

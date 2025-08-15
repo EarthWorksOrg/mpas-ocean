@@ -14,7 +14,6 @@ my @groups = qw(run_modes
                 rayleigh_damping
                 cvmix
                 wave_coupling
-                gotm
                 forcing
                 coupling
                 shortwaveradiation

@@ -213,16 +213,6 @@ add_default($nl, 'config_cvmix_kpp_use_active_wave');
 add_default($nl, 'config_use_active_wave');
 add_default($nl, 'config_n_stokes_drift_wavenumber_partitions');
 
-########################
-# Namelist group: gotm #
-########################
-
-add_default($nl, 'config_use_gotm');
-add_default($nl, 'config_gotm_namelist_file');
-add_default($nl, 'config_gotm_constant_surface_roughness_length');
-add_default($nl, 'config_gotm_constant_bottom_roughness_length');
-add_default($nl, 'config_gotm_constant_bottom_drag_coeff');
-
 ###########################
 # Namelist group: forcing #
 ###########################
