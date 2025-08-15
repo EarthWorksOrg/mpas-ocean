@@ -1,5 +1,0 @@
-# Nothing in this dir should be pushed to github...
-*
-
-# ... except for this file
-!.gitignore

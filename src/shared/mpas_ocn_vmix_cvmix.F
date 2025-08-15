@@ -600,7 +600,6 @@ contains
                    Nsqr_iface = Nsqr_iface(minLevelCell(iCell):maxLevelCell(iCell)+1), &
                    EFactor = langmuirEnhancementFactor, &
                    LaSL = langmuirNumber(iCell), &
-                   bfsfc = cvmix_variables%SurfaceBuoyancyForcing, &
                    ustar = cvmix_variables%SurfaceFriction )
               ! TODO: the surface buoyancy forcing here does not include penetrative solar radiation? <05-09-18, Qing Li> !
 
@@ -613,7 +612,6 @@ contains
                    kOBL_depth = cvmix_variables % kOBL_depth, &
                    zt_cntr = cvmix_variables % zt_cntr(minLevelCell(iCell):maxLevelCell(iCell)), &
                    surf_fric = cvmix_variables % SurfaceFriction, &
-                   surf_buoy = cvmix_variables % SurfaceBuoyancyForcing, &
                    Coriolis = cvmix_variables % Coriolis)
 
              endif  ! if (config_use_cvmix_fixed_boundary_layer) then
