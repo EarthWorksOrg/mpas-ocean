@@ -46,6 +46,7 @@ module ocn_vel_forcing_topographic_wave_drag
    !--------------------------------------------------------------------
 
    public :: ocn_vel_forcing_topographic_wave_drag_tend, &
+             ocn_vel_forcing_topographic_wave_drag_tend_gpu, &
              ocn_vel_forcing_topographic_wave_drag_init
 
    !--------------------------------------------------------------------
@@ -135,6 +136,70 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_vel_forcing_topographic_wave_drag_tend!}}}
+
+   subroutine ocn_vel_forcing_topographic_wave_drag_tend_gpu(normalVelocity, & !{{{
+                     tend, err)
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         normalVelocity   !< Input: velocity
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         tend          !< Input/Output: velocity tendency
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iEdge, k
+
+      err = 0
+      if ( .not. topographicWaveDragOn ) return
+!NV!  !!! NOT EXECUTING !!!
+      write(*,*) "ocn_vel_forcing_topographic_wave_drag_tend_gpu NOT EXECUTING"
+
+      call mpas_timer_start('vel topographic wave drag gpu')
+
+      !$omp do schedule(runtime) private(k)
+      do iEdge = 1, nEdgesOwned
+        k =  maxLevelEdgeTop(iEdge)
+        ! topographic wave drag term:
+        ! du/dt = ... 1/rinv * u
+        ! rinv is the e-folding time use in HyCOM. Here
+        ! topographic_wave_drag = 1/rinv
+        if (k>0) then
+          tend(k,iEdge) = tend(k,iEdge) - topographicWaveDragCoeff &
+             * topographic_wave_drag(iEdge) * normalVelocity(k,iEdge)
+        endif
+      enddo
+      !$omp end do
+
+      call mpas_timer_stop('vel topographic wave drag gpu')
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_vel_forcing_topographic_wave_drag_tend_gpu!}}}
 
 !***********************************************************************
 !

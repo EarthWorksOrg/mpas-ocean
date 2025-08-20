@@ -43,6 +43,7 @@ module ocn_equation_of_state_jm
    !--------------------------------------------------------------------
 
    public :: ocn_equation_of_state_jm_density, &
+             ocn_equation_of_state_jm_density_gpu, &
              ocn_equation_of_state_jm_init
 
    !*** generic interface for case of density only or density and
@@ -50,6 +51,10 @@ module ocn_equation_of_state_jm
    interface ocn_equation_of_state_jm_density
       module procedure ocn_equation_of_state_jm_density_only
       module procedure ocn_equation_of_state_jm_density_exp
+   end interface
+   interface ocn_equation_of_state_jm_density_gpu
+      module procedure ocn_equation_of_state_jm_density_only_gpu
+      module procedure ocn_equation_of_state_jm_density_exp_gpu
    end interface
 
    !--------------------------------------------------------------------
@@ -62,6 +67,7 @@ module ocn_equation_of_state_jm
 
    real (kind=RKIND), dimension(:), allocatable :: &
       ocnEqStatePRef   ! reference pressure at each layer
+!$acc declare create(ocnEqStatePRef)
 
    !*** valid range of T,S for Jackett and McDougall
 
@@ -239,9 +245,6 @@ contains
       !*** allocate and compute pressure array
 
       allocate(p(nVertLevels),p2(nVertLevels))
-#ifdef MPAS_OPENACC
-      !$acc enter data create(p, p2)
-#endif
 
       ! Determine pressure to use in density calculation
       !  If kDisplaced=0, in-situ density is returned (no displacement)
@@ -273,19 +276,11 @@ contains
 
       if (kDisplacedLocal == 0) then
          ! use pressure at in situ level
-#ifdef MPAS_OPENACC
-         !$acc parallel loop gang vector &
-         !$acc    present(p, p2, ocnEqStatePRef)
-#endif
          do k=1,nVertLevels
             p (k) = ocnEqStatePRef(k)
             p2(k) = ocnEqStatePRef(k)*ocnEqStatePRef(k)
          enddo
       else ! kDisplacedLocal /= 0
-#ifdef MPAS_OPENACC
-         !$acc parallel loop gang vector &
-         !$acc    present(p, p2, ocnEqStatePRef)
-#endif
          do k=1,nVertLevels
             ! determine level to which parcel is displaced
             !  and thus which pressure (depth) to use in EOS
@@ -306,18 +301,11 @@ contains
       ! For OpenACC, these are device resident only
       allocate(tracerTemp(nVertLevels,nCells), &
                tracerSalt(nVertLevels,nCells))
-      !$acc enter data create(tracerTemp, tracerSalt)
 
       if (displacementType == 'surfaceDisplaced') then
 
-#ifdef MPAS_OPENACC
-         !$acc parallel loop gang vector collapse(2) &
-         !$acc    present(tracerssurfacelayervalue, &
-         !$acc            tracerTemp, tracerSalt)
-#else
          !$omp parallel
          !$omp do schedule(runtime) private(k, tq, sq)
-#endif
          do iCell=1,nCells
          do k=1,nVertLevels
             tq = min(tracersSurfaceLayerValue(indexT,iCell), &
@@ -328,20 +316,13 @@ contains
             tracerSalt(k,iCell) = max(sq,ocnEqStateSmin)
          enddo
          end do
-#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-#endif
 
       else
 
-#ifdef MPAS_OPENACC
-         !$acc parallel loop gang vector collapse(2) &
-         !$acc    present(tracers, tracerTemp, tracerSalt)
-#else
          !$omp parallel
          !$omp do schedule(runtime) private(k, tq, sq)
-#endif
          do iCell=1,nCells
          do k = 1, nVertLevels
             tq = min(tracers(indexT,k,iCell), ocnEqStateTmax)
@@ -350,21 +331,14 @@ contains
             tracerSalt(k,iCell) = max(sq,ocnEqStateSmin)
          end do
          end do
-#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-#endif
 
       endif
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop gang vector collapse(2) &
-      !$acc&   present(density, tracerTemp, tracerSalt, p, p2)
-#else
       !$omp parallel
       !$omp do schedule(runtime) &
       !$omp private(k, sq, tq, sqr, t2, work1, work2, rhosfc, work3, work4, bulkMod)
-#endif
       do iCell=1,nCells
       do k=1,nVertLevels
 
@@ -411,18 +385,251 @@ contains
 
       end do
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
 
-      !$acc exit data delete(p, p2, tracerTemp, tracerSalt)
       deallocate(p,p2)
       deallocate(tracerTemp, tracerSalt)
 
    !--------------------------------------------------------------------
 
    end subroutine ocn_equation_of_state_jm_density_only!}}}
+
+   subroutine ocn_equation_of_state_jm_density_only_gpu(nVertLevels,      &
+                               nCells, kDisplaced, displacementType,  &
+                               indexT, indexS, tracers, density, err, &
+                               tracersSurfaceLayerValue)
+   !{{{
+   !--------------------------------------------------------------------
+
+      !-----------------------------------------------------------------
+      ! Input variables
+      !-----------------------------------------------------------------
+
+      integer, intent(in) :: &
+         nCells,             &! number of horizontal cells
+         nVertLevels,        &! max number of vertical levels
+         kDisplaced,         &! target layer for displacement
+         indexT,             &! temperature index in tracer array
+         indexS               ! salinity    index in tracer array
+
+      character(len=*), intent(in) :: &
+         displacementType     ! choice of displacement
+
+      real (kind=RKIND), dimension(:,:,:), intent(in) :: &
+         tracers              ! array of tracers including T,S
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         tracersSurfaceLayerValue
+
+      !-----------------------------------------------------------------
+      ! Output variables
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err  ! error flag
+
+      real (kind=RKIND), dimension(:,:), intent(out) :: &
+         density         ! computed density
+
+      !-----------------------------------------------------------------
+      ! Local variables
+      !-----------------------------------------------------------------
+
+      integer ::          &
+         iCell, k,        &! cell and vertical level loop indices
+         kTmp, kRef,      &! indices to determine ref level for pressure
+         kDisplacedLocal   ! locally modified displacement target level
+
+      character(len=60) :: &
+         displacementTypeLocal ! locally modified displacement type
+
+      real (kind=RKIND), dimension(:), allocatable :: &
+         p, p2 ! temporary pressure scalars
+
+      real (kind=RKIND), dimension(:,:), allocatable :: &
+         tracerTemp,          &! modified temperature
+         tracerSalt            ! modified salinity
+
+      real (kind=RKIND) :: &
+         work1, work2,     &! temporary scalars for calc
+         work3, work4,     &!
+         tq, sq,           &! adjusted T,S
+         t2, sqr,          &! temperature squared and square root salt
+         bulkMod,          &! Bulk modulus
+         rhosfc             ! density at the surface
+
+      !-----------------------------------------------------------------
+
+      !*** initialize error flag
+
+      err = 0
+
+      !*** allocate and compute pressure array
+      allocate(p(nVertLevels),p2(nVertLevels))
+      ! For OpenACC, these are device resident only
+      allocate(tracerTemp(nVertLevels,nCells), &
+               tracerSalt(nVertLevels,nCells))
+
+!$acc data present(ocnEqStatePRef,tracersSurfaceLayerValue,tracers,density) &
+!$acc      create(p,p2,tracerTemp,tracerSalt)
+
+      ! Determine pressure to use in density calculation
+      !  If kDisplaced=0, in-situ density is returned (no displacement)
+      !  If kDisplaced/=0, potential density is returned
+
+      !  if displacementType = 'relative', potential density is calculated
+      !     referenced to level k + kDisplaced
+      !  if displacementType = 'absolute', potential density is calculated
+      !     referenced to level kDisplaced for all k
+      !  NOTE: kDisplaced = 0 or > nVertLevels is incompatible with 'absolute'
+      !     so abort if necessary
+
+      if (displacementType == 'surfaceDisplaced') then
+         displacementTypeLocal = 'relative'
+         kDisplacedLocal = 0
+      else
+         displacementTypeLocal = trim(displacementType)
+         kDisplacedLocal = kDisplaced
+      endif
+
+      ! Eliminate this error check for performance reasons
+      !if (displacementTypeLocal == 'absolute' .and.   &
+      !   (kDisplacedLocal <= 0 .or. kDisplacedLocal > nVertLevels) ) then
+      !
+      !   call mpas_log_write('Abort: In equation_of_state_jm' // &
+      !       ' kDisplaced must be between 1 and nVertLevels for ' // &
+      !       'displacementType = absolute', MPAS_LOG_CRIT)
+      !endif
+
+      if (kDisplacedLocal == 0) then
+         ! use pressure at in situ level
+!$acc parallel
+!$acc loop gang vector
+         do k=1,nVertLevels
+            p (k) = ocnEqStatePRef(k)
+            p2(k) = ocnEqStatePRef(k)*ocnEqStatePRef(k)
+         enddo
+!$acc end parallel
+      else ! kDisplacedLocal /= 0
+!$acc parallel
+!$acc loop gang vector private(kTmp,kRef)
+         do k=1,nVertLevels
+            ! determine level to which parcel is displaced
+            !  and thus which pressure (depth) to use in EOS
+            if (displacementTypeLocal == 'relative') then
+               kTmp = min(k + kDisplacedLocal, nVertLevels)
+            else
+               kTmp = min(kDisplacedLocal, nVertLevels)
+            endif
+            kRef  = max(kTmp, 1)  ! make sure index bounded to 1
+            p (k) = ocnEqStatePRef(kRef)
+            p2(k) = ocnEqStatePRef(kRef)*ocnEqStatePRef(kRef)
+         enddo
+!$acc end parallel
+      endif
+
+      !*** compute modified T,S to account for displacement and
+      !*** valid range
+
+      if (displacementType == 'surfaceDisplaced') then
+         !$omp parallel
+         !$omp do schedule(runtime) private(k, tq, sq)
+!$acc parallel
+!$acc loop gang vector collapse(2) private(tq,sq)
+         do iCell=1,nCells
+         do k=1,nVertLevels
+            tq = min(tracersSurfaceLayerValue(indexT,iCell), &
+                     ocnEqStateTmax)
+            sq = min(tracersSurfaceLayerValue(indexS,iCell), &
+                     ocnEqStateSmax)
+            tracerTemp(k,iCell) = max(tq,ocnEqStateTmin)
+            tracerSalt(k,iCell) = max(sq,ocnEqStateSmin)
+         enddo
+         end do
+!$acc end parallel
+         !$omp end do
+         !$omp end parallel
+      else
+         !$omp parallel
+         !$omp do schedule(runtime) private(k, tq, sq)
+!$acc parallel
+!$acc loop gang vector collapse(2) private(tq,sq)
+         do iCell=1,nCells
+         do k = 1, nVertLevels
+            tq = min(tracers(indexT,k,iCell), ocnEqStateTmax)
+            sq = min(tracers(indexS,k,iCell), ocnEqStateSmax)
+            tracerTemp(k,iCell) = max(tq,ocnEqStateTmin)
+            tracerSalt(k,iCell) = max(sq,ocnEqStateSmin)
+         end do
+         end do
+!$acc end parallel
+         !$omp end do
+         !$omp end parallel
+      endif
+
+      !$omp parallel
+      !$omp do schedule(runtime) &
+      !$omp private(k, sq, tq, sqr, t2, work1, work2, rhosfc, work3, work4, bulkMod)
+!$acc parallel
+!$acc loop gang vector collapse(2) private(sq,tq,sqr,t2,work1,work2,rhosfc,work3,work4,bulkMod)
+      do iCell=1,nCells
+      do k=1,nVertLevels
+
+         sq  = tracerSalt(k,iCell)
+         tq  = tracerTemp(k,iCell)
+
+         sqr = sqrt(sq)
+         t2  = tq*tq
+
+         !***
+         !*** first calculate surface (p=0) values from UNESCO eqns.
+         !***
+
+         work1 =      uns1t0 + uns1t1*tq + &
+                     (uns1t2 + uns1t3*tq + uns1t4*t2)*t2
+         work2 = sqr*(unsqt0 + unsqt1*tq + unsqt2*t2)
+
+         rhosfc = unt1*tq + (unt2 + unt3*tq + (unt4 + unt5*tq)*t2)*t2 &
+                          + (uns2t0*sq + work1 + work2)*sq
+
+         !***
+         !*** now calculate bulk modulus at pressure p from
+         !*** Jackett and McDougall formula
+         !***
+
+         work3 = bup0s1t0 + bup0s1t1*tq +     &
+                (bup0s1t2 + bup0s1t3*tq)*t2 + &
+          p(k) *(bup1s1t0 + bup1s1t1*tq + bup1s1t2*t2) + &
+          p2(k)*(bup2s1t0 + bup2s1t1*tq + bup2s1t2*t2)
+
+         work4 = sqr*(bup0sqt0 + bup0sqt1*tq + bup0sqt2*t2 + &
+                      bup1sqt0*p(k))
+
+         bulkMod = bup0s0t0 + bup0s0t1*tq +                    &
+                  (bup0s0t2 + bup0s0t3*tq + bup0s0t4*t2)*t2 + &
+            p(k) *(bup1s0t0 + bup1s0t1*tq +                &
+                  (bup1s0t2 + bup1s0t3*tq)*t2) +           &
+            p2(k)*(bup2s0t0 + bup2s0t1*tq + bup2s0t2*t2) + &
+                   sq*(work3 + work4)
+
+
+         density(k,iCell) = (unt0 + rhosfc)*bulkMod/ &
+                            (bulkMod - p(k))
+
+      end do
+      end do
+!$acc end parallel
+      !$omp end do
+      !$omp end parallel
+
+!$acc end data
+
+      deallocate(p,p2)
+      deallocate(tracerTemp, tracerSalt)
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_equation_of_state_jm_density_only_gpu!}}}
 
 !***********************************************************************
 !
@@ -538,9 +745,6 @@ contains
       !*** allocate and compute pressure array
 
       allocate(p(nVertLevels),p2(nVertLevels))
-#ifdef MPAS_OPENACC
-      !$acc enter data create(p, p2)
-#endif
 
       ! Determine pressure to use in density calculation
       !  If kDisplaced=0, in-situ density is returned (no displacement)
@@ -572,19 +776,11 @@ contains
 
       if (kDisplacedLocal == 0) then
          ! use pressure at in situ level
-#ifdef MPAS_OPENACC
-         !$acc parallel loop gang vector &
-         !$acc    present(p, p2, ocnEqStatePRef)
-#endif
          do k=1,nVertLevels
             p (k) = ocnEqStatePRef(k)
             p2(k) = ocnEqStatePRef(k)*ocnEqStatePRef(k)
          enddo
       else ! kDisplacedLocal /= 0
-#ifdef MPAS_OPENACC
-         !$acc parallel loop gang vector &
-         !$acc    present(p, p2, ocnEqStatePRef)
-#endif
          do k=1,nVertLevels
             ! determine level to which parcel is displaced
             !  and thus which pressure (depth) to use in EOS
@@ -605,18 +801,11 @@ contains
       ! For OpenACC, these are device resident only
       allocate(tracerTemp(nVertLevels,nCells), &
                tracerSalt(nVertLevels,nCells))
-      !$acc enter data create(tracerTemp, tracerSalt)
 
       if (displacementType == 'surfaceDisplaced') then
 
-#ifdef MPAS_OPENACC
-         !$acc parallel loop gang vector collapse(2) &
-         !$acc    present(tracerssurfacelayervalue, &
-         !$acc            tracerTemp, tracerSalt)
-#else
          !$omp parallel
          !$omp do schedule(runtime) private(k, tq, sq)
-#endif
          do iCell=1,nCells
          do k=1,nVertLevels
             tq = min(tracersSurfaceLayerValue(indexT,iCell), &
@@ -627,20 +816,13 @@ contains
             tracerSalt(k,iCell) = max(sq,ocnEqStateSmin)
          enddo
          end do
-#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-#endif
 
       else
 
-#ifdef MPAS_OPENACC
-         !$acc parallel loop gang vector collapse(2) &
-         !$acc    present(tracers, tracerTemp, tracerSalt)
-#else
          !$omp parallel
          !$omp do schedule(runtime) private(k, tq, sq)
-#endif
          do iCell=1,nCells
          do k = 1, nVertLevels
             tq = min(tracers(indexT,k,iCell), ocnEqStateTmax)
@@ -649,25 +831,16 @@ contains
             tracerSalt(k,iCell) = max(sq,ocnEqStateSmin)
          end do
          end do
-#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-#endif
 
       endif
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop gang vector collapse(2)     &
-      !$acc    present(density, tracerTemp, tracerSalt, p, p2, &
-      !$acc            thermalExpansionCoeff,         &
-      !$acc            salineContractionCoeff)
-#else
       !$omp parallel
       !$omp do schedule(runtime) &
       !$omp private(k, sq, tq, sqr, t2, rhosfc, bulkMod, &
       !$omp         work1, work2, work3, work4, denomk, &
       !$omp         drdt0, dkdt, drhodt, drds0, dkds, drhods)
-#endif
       do iCell=1,nCells
       do k=1,nVertLevels
 
@@ -759,18 +932,315 @@ contains
 
       end do
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
 
-      !$acc exit data delete(p, p2, tracerTemp, tracerSalt)
       deallocate(p,p2)
       deallocate(tracerTemp, tracerSalt)
 
    !--------------------------------------------------------------------
 
    end subroutine ocn_equation_of_state_jm_density_exp!}}}
+
+   subroutine ocn_equation_of_state_jm_density_exp_gpu(nVertLevels,       &
+                               nCells, kDisplaced, displacementType,  &
+                               indexT, indexS, tracers, density, err, &
+                               thermalExpansionCoeff,                 &
+                               salineContractionCoeff,                &
+                               tracersSurfaceLayerValue)
+   !{{{
+   !--------------------------------------------------------------------
+
+      !-----------------------------------------------------------------
+      ! Input variables
+      !-----------------------------------------------------------------
+
+      integer, intent(in) :: &
+         nCells,             &! number of horizontal cells
+         nVertLevels,        &! max number of vertical levels
+         kDisplaced,         &! target layer for displacement
+         indexT,             &! temperature index in tracer array
+         indexS               ! salinity    index in tracer array
+
+      character(len=*), intent(in) :: &
+         displacementType     ! choice of displacement
+
+      real (kind=RKIND), dimension(:,:,:), intent(in) :: &
+         tracers              ! array of tracers including T,S
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         tracersSurfaceLayerValue
+
+      !-----------------------------------------------------------------
+      ! Output variables
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err  ! error flag
+
+      real (kind=RKIND), dimension(:,:), intent(out) :: &
+         density         ! computed density
+
+      ! Thermal expansion coeff, $-1/\rho d\rho/dT$ (note negative sign)
+      ! Saline contraction coeff, $1/\rho d\rho/dS$
+      real (kind=RKIND), dimension(:,:), intent(out) :: &
+         thermalExpansionCoeff,  &! Thermal expansion  coeff (alpha)
+         salineContractionCoeff   ! Saline contraction coeff (beta)
+
+      !-----------------------------------------------------------------
+      ! Local variables
+      !-----------------------------------------------------------------
+
+      integer ::          &
+         iCell, k,        &! cell and vertical level loop indices
+         kTmp, kRef,      &! indices to determine ref level for pressure
+         kDisplacedLocal   ! locally modified displacement target level
+
+      character(len=60) :: &
+         displacementTypeLocal ! locally modified displacement type
+
+      real (kind=RKIND) :: &
+         tq, sq,           &! adjusted T,S
+         t2, sqr,          &! T squared and square root salt
+         rhosfc,           &! density at the surface
+         bulkMod,          &! Bulk modulus
+         denomk,           &! temp for avoiding division
+         work1, work2,     &! temporary work space
+         work3, work4,     &!
+         drdt0,            &! d(density)/d(temperature), for surface
+         drds0,            &! d(density)/d(salinity   ), for surface
+         dkdt,             &! d(bulk modulus)/d(pot. temp.)
+         dkds,             &! d(bulk modulus)/d(salinity  )
+         drhodt,           &! derivative of density with respect to temperature
+         drhods             ! derivative of density with respect to salinity
+
+      real (kind=RKIND), dimension(:), allocatable :: &
+         p, p2 ! temporary pressure scalars
+
+      real (kind=RKIND), dimension(:,:), allocatable :: &
+         tracerTemp,          &! modified temperature
+         tracerSalt            ! modified salinity
+
+      !-----------------------------------------------------------------
+
+      !*** initialize error flag
+
+      err = 0
+
+      !*** allocate and compute pressure array
+      allocate(p(nVertLevels),p2(nVertLevels))
+      ! For OpenACC, these are device resident only
+      allocate(tracerTemp(nVertLevels,nCells), &
+               tracerSalt(nVertLevels,nCells))
+
+!$acc data present(ocnEqStatePRef,tracersSurfaceLayerValue,tracers,density,thermalExpansionCoeff,&
+!$acc              salineContractionCoeff) &
+!$acc      create(p,p2,tracerTemp,tracerSalt)
+
+      ! Determine pressure to use in density calculation
+      !  If kDisplaced=0, in-situ density is returned (no displacement)
+      !  If kDisplaced/=0, potential density is returned
+
+      !  if displacementType = 'relative', potential density is calculated
+      !     referenced to level k + kDisplaced
+      !  if displacementType = 'absolute', potential density is calculated
+      !     referenced to level kDisplaced for all k
+      !  NOTE: kDisplaced = 0 or > nVertLevels is incompatible with 'absolute'
+      !     so abort if necessary
+
+      if (displacementType == 'surfaceDisplaced') then
+         displacementTypeLocal = 'relative'
+         kDisplacedLocal = 0
+      else
+         displacementTypeLocal = trim(displacementType)
+         kDisplacedLocal = kDisplaced
+      endif
+
+      ! Eliminate this error check for performance reasons
+      !if (displacementTypeLocal == 'absolute' .and.   &
+      !   (kDisplacedLocal <= 0 .or. kDisplacedLocal > nVertLevels) ) then
+      !
+      !   call mpas_log_write('Abort: In equation_of_state_jm' // &
+      !       ' kDisplaced must be between 1 and nVertLevels for ' // &
+      !       'displacementType = absolute', MPAS_LOG_CRIT)
+      !endif
+
+      if (kDisplacedLocal == 0) then
+         ! use pressure at in situ level
+!$acc parallel
+!$acc loop gang vector
+         do k=1,nVertLevels
+            p (k) = ocnEqStatePRef(k)
+            p2(k) = ocnEqStatePRef(k)*ocnEqStatePRef(k)
+         enddo
+!$acc end parallel
+      else ! kDisplacedLocal /= 0
+!$acc parallel
+!$acc loop gang vector private(kTmp,kRef)
+         do k=1,nVertLevels
+            ! determine level to which parcel is displaced
+            !  and thus which pressure (depth) to use in EOS
+            if (displacementTypeLocal == 'relative') then
+               kTmp = min(k + kDisplacedLocal, nVertLevels)
+            else
+               kTmp = min(kDisplacedLocal, nVertLevels)
+            endif
+            kRef  = max(kTmp, 1)  ! make sure index bounded to 1
+            p (k) = ocnEqStatePRef(kRef)
+            p2(k) = ocnEqStatePRef(kRef)*ocnEqStatePRef(kRef)
+         enddo
+!$acc end parallel
+      endif
+
+      !*** compute modified T,S to account for displacement and
+      !*** valid range
+
+      if (displacementType == 'surfaceDisplaced') then
+         !$omp parallel
+         !$omp do schedule(runtime) private(k, tq, sq)
+!$acc parallel
+!$acc loop gang vector collapse(2) private(tq,sq)
+         do iCell=1,nCells
+         do k=1,nVertLevels
+            tq = min(tracersSurfaceLayerValue(indexT,iCell), &
+                     ocnEqStateTmax)
+            sq = min(tracersSurfaceLayerValue(indexS,iCell), &
+                     ocnEqStateSmax)
+            tracerTemp(k,iCell) = max(tq,ocnEqStateTmin)
+            tracerSalt(k,iCell) = max(sq,ocnEqStateSmin)
+         enddo
+         end do
+!$acc end parallel
+         !$omp end do
+         !$omp end parallel
+      else
+         !$omp parallel
+         !$omp do schedule(runtime) private(k, tq, sq)
+!$acc parallel
+!$acc loop gang vector collapse(2) private(tq,sq)
+         do iCell=1,nCells
+         do k = 1, nVertLevels
+            tq = min(tracers(indexT,k,iCell), ocnEqStateTmax)
+            sq = min(tracers(indexS,k,iCell), ocnEqStateSmax)
+            tracerTemp(k,iCell) = max(tq,ocnEqStateTmin)
+            tracerSalt(k,iCell) = max(sq,ocnEqStateSmin)
+         end do
+         end do
+!$acc end parallel
+         !$omp end do
+         !$omp end parallel
+      endif
+
+      !$omp parallel
+      !$omp do schedule(runtime) &
+      !$omp private(k, sq, tq, sqr, t2, rhosfc, bulkMod, &
+      !$omp         work1, work2, work3, work4, denomk, &
+      !$omp         drdt0, dkdt, drhodt, drds0, dkds, drhods)
+!$acc parallel
+!$acc loop gang vector collapse(2) private(sq,tq,sqr,t2,work1,work2,rhosfc,work3,work4,&
+!$acc                                      bulkMod,denomk,drdt0,dkdt,drhodt,drds0,dkds,drhods)
+      do iCell=1,nCells
+      do k=1,nVertLevels
+
+         sq  = tracerSalt(k,iCell)
+         tq  = tracerTemp(k,iCell)
+
+         sqr = sqrt(sq)
+         t2  = tq*tq
+
+         !***
+         !*** first calculate surface (p=0) values from UNESCO eqns.
+         !***
+
+         work1 = uns1t0 + uns1t1*tq + &
+                (uns1t2 + uns1t3*tq + uns1t4*t2)*t2
+         work2 = sqr*(unsqt0 + unsqt1*tq + unsqt2*t2)
+
+         rhosfc = unt1*tq + (unt2 + unt3*tq + (unt4 + unt5*tq)*t2)*t2 &
+                          + (uns2t0*sq + work1 + work2)*sq
+
+         !***
+         !*** now calculate bulk modulus at pressure p from
+         !*** Jackett and McDougall formula
+         !***
+
+         work3 = bup0s1t0 + bup0s1t1*tq +                    &
+                (bup0s1t2 + bup0s1t3*tq)*t2 +                &
+          p(k) *(bup1s1t0 + bup1s1t1*tq + bup1s1t2*t2) + &
+          p2(k)*(bup2s1t0 + bup2s1t1*tq + bup2s1t2*t2)
+
+         work4 = sqr*(bup0sqt0 + bup0sqt1*tq + bup0sqt2*t2 + &
+                                 bup1sqt0*p(k))
+
+         bulkMod  = bup0s0t0 + bup0s0t1*tq +                    &
+                   (bup0s0t2 + bup0s0t3*tq + bup0s0t4*t2)*t2 + &
+             p(k) *(bup1s0t0 + bup1s0t1*tq +                &
+                   (bup1s0t2 + bup1s0t3*tq)*t2) +           &
+             p2(k)*(bup2s0t0 + bup2s0t1*tq + bup2s0t2*t2) + &
+                                        sq*(work3 + work4)
+
+         !***
+         !*** compute density
+         !***
+
+         denomk = 1.0_RKIND/(bulkMod - p(k))
+
+         density(k, iCell) = (unt0 + rhosfc)*bulkMod*denomk
+
+         !***
+         !*** compute temperature expansion coeff
+         !***  by differentiating above formulae
+         !***
+
+         drdt0 =             unt1 + 2.0_RKIND*unt2*tq +        &
+                  (3.0_RKIND*unt3 + 4.0_RKIND*unt4*tq +        &
+                                    5.0_RKIND*unt5*t2)*t2 +    &
+                          (uns1t1 + 2.0_RKIND*uns1t2*tq +      &
+                (3.0_RKIND*uns1t3 + 4.0_RKIND*uns1t4*tq)*t2 +  &
+                          (unsqt1 + 2.0_RKIND*unsqt2*tq)*sqr )*sq
+
+         dkdt  =            bup0s0t1 + 2.0_RKIND*bup0s0t2*tq +      &
+                 (3.0_RKIND*bup0s0t3 + 4.0_RKIND*bup0s0t4*tq)*t2 +  &
+                     p(k) *(bup1s0t1 + 2.0_RKIND*bup1s0t2*tq +      &
+                                       3.0_RKIND*bup1s0t3*t2) +     &
+                     p2(k)*(bup2s0t1 + 2.0_RKIND*bup2s0t2*tq) +     &
+                        sq*(bup0s1t1 + 2.0_RKIND*bup0s1t2*tq +      &
+                                       3.0_RKIND*bup0s1t3*t2 +      &
+                    p(k)  *(bup1s1t1 + 2.0_RKIND*bup1s1t2*tq) +     &
+                    p2(k) *(bup2s1t1 + 2.0_RKIND*bup2s1t2*tq) +     &
+                       sqr*(bup0sqt1 + 2.0_RKIND*bup0sqt2*tq))
+
+         drhodt = (denomk*(drdt0*bulkMod -                    &
+                  p(k)*(unt0+rhosfc)*dkdt*denomk))
+
+         thermalExpansionCoeff(k,iCell) = -drhodt/density(k,iCell)
+
+         !***
+         !*** compute salinity contraction coeff
+         !***  by differentiating above formulae
+         !***
+
+         drds0  = 2.0_RKIND*uns2t0*sq + work1 + 1.5_RKIND*work2
+         dkds   = work3 + 1.5_RKIND*work4
+
+         drhods = denomk*(drds0*bulkMod -                    &
+                   p(k)*(unt0+rhosfc)*dkds*denomk)
+
+         salineContractionCoeff(k,iCell) = drhods/density(k,iCell)
+
+      end do
+      end do
+!$acc end parallel
+      !$omp end do
+      !$omp end parallel
+
+!$acc end data
+
+      deallocate(p,p2)
+      deallocate(tracerTemp, tracerSalt)
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_equation_of_state_jm_density_exp_gpu!}}}
 
 !***********************************************************************
 !
@@ -837,7 +1307,7 @@ contains
       block => domain % blocklist
       call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
 
-      call mpas_pool_get_array(meshPool,     'refBottomDepth', &
+      call mpas_pool_get_array_gpu(meshPool,     'refBottomDepth', &
                                               refBottomDepth)
 
       call mpas_pool_get_dimension(meshPool, 'nVertLevels', &
@@ -857,6 +1327,7 @@ contains
 
       allocate(ocnEqStatePRef(nVertLevels))
 
+!$acc update host(refBottomDepth)
       depth = 0.5_RKIND*refBottomDepth(1)
       ocnEqStatePRef(1) = &
            0.059808_RKIND  *(exp(-0.025_RKIND*depth) - 1.0_RKIND) &
@@ -869,9 +1340,7 @@ contains
             + 0.100766_RKIND  *depth                                 &
             + 2.28405e-7_RKIND*depth**2
       enddo
-#ifdef MPAS_OPENACC
-      !$acc enter data copyin(ocnEqStatePRef)
-#endif
+!$acc update device(ocnEqStatePRef)
 
    !--------------------------------------------------------------------
 

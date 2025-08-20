@@ -50,6 +50,7 @@ module ocn_tracer_surface_restoring
    !--------------------------------------------------------------------
 
    public :: ocn_tracer_surface_restoring_compute,          &
+             ocn_tracer_surface_restoring_compute_gpu,      &
              ocn_get_surfaceSalinityData,                   &
              ocn_salinity_restoring_forcing_write_restart,  &
              ocn_tracer_surface_restoring_init
@@ -163,6 +164,105 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_tracer_surface_restoring_compute!}}}
+
+   subroutine ocn_tracer_surface_restoring_compute_gpu(groupName, nTracers, nCells, tracers, pistonVelocity, &
+                 tracersSurfaceRestoringValue, tracersSurfaceFlux, indexSalinity,  &
+                 use_surface_salinity_monthly_restoring, salinity_restoring_constant_piston_velocity, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      character (len=*), intent(in) :: groupName !< Input: Name of tracer group
+
+      ! scalars
+      integer, intent(in) ::  &
+          nTracers,           &
+          indexSalinity,      &
+          nCells
+
+      real (kind=RKIND), intent(in) :: salinity_restoring_constant_piston_velocity
+
+      ! logicals
+      logical, intent(in) ::  &
+          use_surface_salinity_monthly_restoring
+
+      ! three dimensional arrays
+      real (kind=RKIND), dimension(:,:,:), intent(in) :: &
+         tracers
+
+      ! two dimensional ararys
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         pistonVelocity,     &
+         tracersSurfaceRestoringValue
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+        tracersSurfaceFlux
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: Error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iCell, iLevel, iTracer
+      character (len=13) :: trimGroupName
+
+      err = 0
+      trimGroupName = trim(groupName)
+
+!$acc data present(minLevelCell,&
+!$acc              tracersSurfaceFlux,tracersSurfaceRestoringValue,pistonVelocity,tracers)
+
+      !$omp parallel
+      !$omp do schedule(runtime) private(iTracer, iLevel)
+!$acc parallel
+!$acc loop gang private(iLevel)
+      do iCell=1,nCells
+        iLevel = minLevelCell(iCell)  ! base surface flux restoring on tracer fields in the top layer
+
+!$acc loop vector
+        do iTracer=1,nTracers
+
+          ! For monthly salinity restoring, tracersSurfaceRestoringValue contains the zero-mean deltaS
+          if (trimGroupName == 'activeTracers' &
+                .and. iTracer == indexSalinity   &
+                .and. use_surface_salinity_monthly_restoring) then
+          tracersSurfaceFlux(iTracer, iCell) =   tracersSurfaceFlux(iTracer, iCell) + &
+                                                 salinity_restoring_constant_piston_velocity * &
+                                                 tracersSurfaceRestoringValue(iTracer,iCell)
+          else
+          tracersSurfaceFlux(iTracer, iCell) =  tracersSurfaceFlux(iTracer, iCell) - &
+                                                pistonVelocity(iTracer,iCell) *      &
+                                                 (tracers(iTracer, iLevel, iCell) - tracersSurfaceRestoringValue(iTracer,iCell))
+          endif
+        enddo
+      enddo
+!$acc end parallel
+      !$omp end do
+      !$omp end parallel
+
+!$acc end data
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_tracer_surface_restoring_compute_gpu!}}}
 
 !***********************************************************************
 !

@@ -471,7 +471,8 @@ contains
 
       call mpas_pool_get_subpool(domain % blocklist % structs, 'state', statePool)
       call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
-      call mpas_pool_get_array(tracersPool, 'DMSTracers', DMSTracers, 1)
+      call mpas_pool_get_array_gpu(tracersPool, 'DMSTracers', DMSTracers, 1)
+!$acc update host(DMSTracers)
 
       ! make sure DMS is turned on
 

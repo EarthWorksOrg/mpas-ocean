@@ -51,6 +51,7 @@ module ocn_tracer_advection_shared
       advCoefs,       &! common advection coefficients
       advCoefs3rd,    &! common advection coeffs for high order
       advMaskHighOrder ! mask for high order advection terms
+!$acc declare create(nAdvCellsForEdge,advCellsForEdge,advCoefs,advCoefs3rd,advMaskHighOrder)
 
    !--------------------------------------------------------------------
    ! Public member functions 
@@ -310,10 +311,7 @@ module ocn_tracer_advection_shared
       if (config_horiz_tracer_adv_order == 2) &
          advMaskHighOrder(:,:) = 0.0_RKIND
 
-      ! Copy module variables to device
-      !$acc enter data copyin(nAdvCellsForEdge, advCellsForEdge, &
-      !$acc                   advCoefs, advCoefs3rd, advMaskHighOrder)
-
+!$acc update device(nAdvCellsForEdge,advCellsForEdge,advCoefs,advCoefs3rd,advMaskHighOrder)
    !--------------------------------------------------------------------
 
    end subroutine ocn_tracer_advection_shared_init !}}}

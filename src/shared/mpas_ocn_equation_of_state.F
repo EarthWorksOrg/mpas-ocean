@@ -49,13 +49,20 @@ module ocn_equation_of_state
    !--------------------------------------------------------------------
 
    public :: ocn_equation_of_state_density, &
+             ocn_equation_of_state_density_gpu, &
              ocn_equation_of_state_init, &
              ocn_freezing_temperature, &
+             ocn_freezing_temperature_gpu, &
              ocn_freezing_temperature_salinity_deriv
 
    interface ocn_equation_of_state_density
       module procedure ocn_equation_of_state_density_openacc
       module procedure ocn_equation_of_state_density_original
+   end interface
+
+   interface ocn_equation_of_state_density_gpu
+      module procedure ocn_equation_of_state_density_openacc_gpu
+      module procedure ocn_equation_of_state_density_original_gpu
    end interface
 
    !--------------------------------------------------------------------
@@ -247,6 +254,160 @@ contains
 
    end subroutine ocn_equation_of_state_density_openacc!}}}
 
+   subroutine ocn_equation_of_state_density_openacc_gpu(statePool, meshPool, activeTracers, tracersSurfaceValue, &
+                           nCells, kDisplaced, displacement_type, density, err,       &
+                           thermalExpansionCoeff, salineContractionCoeff, timeLevelIn)
+      !{{{
+      !-----------------------------------------------------------------
+      ! Input variables
+      !-----------------------------------------------------------------
+
+      integer, intent(in) :: &
+         nCells,             &! number of horiz mesh cells
+         kDisplaced           ! target vert level for adiab displacement
+
+      real (kind=RKIND), dimension(:,:,:), intent(in) :: &
+         activeTracers
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         tracersSurfaceValue
+
+      integer, intent(in), optional :: &
+         timeLevelIn          ! time level for state variables
+
+      character(len=*), intent(in) :: &
+         displacement_type    ! choice for adiabatic displacement
+
+      type (mpas_pool_type), intent(in) :: &
+         statePool,           &! pool containing state variables
+         meshPool              ! pool containing mesh quantities
+
+      !-----------------------------------------------------------------
+      ! Output variables
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: &
+         err                   ! returned error flag
+
+      real (kind=RKIND), dimension(:,:), intent(out) :: &
+         density               ! computed density of sea water
+
+      ! optional expansion coefficients
+      ! Thermal expansion, defined as $-1/\rho d\rho/dT$ (note neg sign)
+      ! Saline contraction, defined as $1/\rho d\rho/dS$
+      real (kind=RKIND), dimension(:,:), intent(out), optional :: &
+         thermalExpansionCoeff,  &! Thermal expansion coefficient (alpha)
+         salineContractionCoeff   ! Saline contraction coefficient (beta)
+
+      !-----------------------------------------------------------------
+      ! Local variables
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), pointer :: tracersPool
+
+      integer, dimension(:), pointer :: maxLevelCell
+      integer :: nVertLevels, indexT, indexS
+      integer, pointer :: indexTptr, indexSptr
+      integer :: timeLevel
+
+      !-----------------------------------------------------------------
+
+      !*** initialize error flag, start timer
+      err = 0
+
+      call mpas_timer_start("equation of state gpu")
+!NV!  !!! EXECUTING !!!
+
+      !*** initialize or extract relevant fields
+
+      if (present(timeLevelIn)) then
+         timeLevel = timeLevelIn
+      else
+         timeLevel = 1
+      end if
+
+      call mpas_pool_get_subpool  (statePool,   'tracers', &
+                                                 tracersPool)
+      call mpas_pool_get_dimension(tracersPool, 'index_temperature', &
+                                                 indexTptr)
+      call mpas_pool_get_dimension(tracersPool, 'index_salinity', &
+                                                 indexSptr)
+      call mpas_pool_get_array_gpu(meshPool,    'maxLevelCell', &
+                                                 maxLevelCell)
+
+      indexT      = indexTptr
+      indexS      = indexSptr
+      nVertLevels = size(density,1)
+
+      !*** call specific equation of state based on user choice
+
+      select case (ocnEqStateChoice)
+
+      case (ocnEqStateTypeLinear)
+!NV!     !!! NOT EXECUTING !!!
+         write(*,*) "ocn_equation_of_state_density_openacc_gpu ocnEqStateTypeLinear NOT EXECUTING"
+         if (present(thermalExpansionCoeff) .or. &
+             present(salineContractionCoeff)) then
+            call ocn_equation_of_state_linear_density_gpu(nVertLevels,  &
+                     nCells, kDisplaced, displacement_type,         &
+                     indexT, indexS, activeTracers, density, err,   &
+                     thermalExpansionCoeff, salineContractionCoeff, &
+                     tracersSurfaceValue)
+         else
+            call ocn_equation_of_state_linear_density_gpu(nVertLevels, &
+                     nCells, kDisplaced, displacement_type,        &
+                     indexT, indexS, activeTracers, density, err,  &
+                     tracersSurfaceValue)
+         endif
+
+      case (ocnEqStateTypeJM)
+
+         if (present(thermalExpansionCoeff) .or. &
+             present(salineContractionCoeff)) then
+            call ocn_equation_of_state_jm_density_gpu(nVertLevels,        &
+                     nCells, kDisplaced, displacement_type,           &
+                     indexT, indexS, activeTracers, density, err,     &
+                     thermalExpansionCoeff, salineContractionCoeff,   &
+                     tracersSurfaceValue)
+
+         else
+            call ocn_equation_of_state_jm_density_gpu(nVertLevels,        &
+                     nCells, kDisplaced, displacement_type,           &
+                     indexT, indexS, activeTracers, density, err,     &
+                     tracersSurfaceValue)
+         endif
+
+      case (ocnEqStateTypeWright)
+!NV!     !!! NOT EXECUTING !!!
+         write(*,*) "ocn_equation_of_state_density_openacc_gpu ocnEqStateTypeWright NOT EXECUTING"
+         if (present(thermalExpansionCoeff) .or. &
+             present(salineContractionCoeff)) then
+            call ocn_equation_of_state_wright_density_gpu(nVertLevels,    &
+                     nCells, kDisplaced, displacement_type,           &
+                     indexT, indexS, activeTracers, zMid,             &
+                     maxLevelCell, density, err,                      &
+                     thermalExpansionCoeff, salineContractionCoeff,   &
+                     tracersSurfaceValue)
+
+         else
+            call ocn_equation_of_state_wright_density_gpu(nVertLevels,    &
+                     nCells, kDisplaced, displacement_type,           &
+                     indexT, indexS, activeTracers, zMid,             &
+                     maxLevelCell, density, err, tracersSurfaceValue)
+         endif
+
+      case default
+         !*** error handled during init
+      end select
+
+      !*** stop timer and exit
+
+      call mpas_timer_stop("equation of state gpu")
+
+      !-----------------------------------------------------------------
+
+   end subroutine ocn_equation_of_state_density_openacc_gpu!}}}
+
    subroutine ocn_equation_of_state_density_original(statePool, meshPool, tracersSurfaceValue, &
                            nCells, kDisplaced, displacement_type, density, err,       &
                            thermalExpansionCoeff, salineContractionCoeff, timeLevelIn)
@@ -398,6 +559,157 @@ contains
 
    end subroutine ocn_equation_of_state_density_original!}}}
 
+   subroutine ocn_equation_of_state_density_original_gpu(statePool, meshPool, tracersSurfaceValue, &
+                           nCells, kDisplaced, displacement_type, density, err,       &
+                           thermalExpansionCoeff, salineContractionCoeff, timeLevelIn)
+      !{{{
+      !-----------------------------------------------------------------
+      ! Input variables
+      !-----------------------------------------------------------------
+
+      integer, intent(in) :: &
+         nCells,             &! number of horiz mesh cells
+         kDisplaced           ! target vert level for adiab displacement
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         tracersSurfaceValue
+
+      integer, intent(in), optional :: &
+         timeLevelIn          ! time level for state variables
+
+      character(len=*), intent(in) :: &
+         displacement_type    ! choice for adiabatic displacement
+
+      type (mpas_pool_type), intent(in) :: &
+         statePool,           &! pool containing state variables
+         meshPool              ! pool containing mesh quantities
+
+      !-----------------------------------------------------------------
+      ! Output variables
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: &
+         err                   ! returned error flag
+
+      real (kind=RKIND), dimension(:,:), intent(out) :: &
+         density               ! computed density of sea water
+
+      ! optional expansion coefficients
+      ! Thermal expansion, defined as $-1/\rho d\rho/dT$ (note neg sign)
+      ! Saline contraction, defined as $1/\rho d\rho/dS$
+      real (kind=RKIND), dimension(:,:), intent(out), optional :: &
+         thermalExpansionCoeff,  &! Thermal expansion coefficient (alpha)
+         salineContractionCoeff   ! Saline contraction coefficient (beta)
+
+      !-----------------------------------------------------------------
+      ! Local variables
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), pointer :: tracersPool
+
+      real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers
+      integer, dimension(:), pointer :: maxLevelCell
+      integer :: nVertLevels, indexT, indexS
+      integer, pointer :: indexTptr, indexSptr
+      integer :: timeLevel
+
+      !-----------------------------------------------------------------
+
+      !*** initialize error flag, start timer
+      err = 0
+
+      call mpas_timer_start("equation of state gpu")
+
+      !*** initialize or extract relevant fields
+
+      if (present(timeLevelIn)) then
+         timeLevel = timeLevelIn
+      else
+         timeLevel = 1
+      end if
+
+      call mpas_pool_get_subpool  (statePool,   'tracers', &
+                                                 tracersPool)
+      call mpas_pool_get_array_gpu(tracersPool, 'activeTracers', &
+                                                 activeTracers, timeLevel)
+      call mpas_pool_get_dimension(tracersPool, 'index_temperature', &
+                                                 indexTptr)
+      call mpas_pool_get_dimension(tracersPool, 'index_salinity', &
+                                                 indexSptr)
+      call mpas_pool_get_array_gpu(meshPool,    'maxLevelCell', &
+                                                 maxLevelCell)
+
+      indexT      = indexTptr
+      indexS      = indexSptr
+      nVertLevels = size(density,1)
+
+      !*** call specific equation of state based on user choice
+
+      select case (ocnEqStateChoice)
+
+      case (ocnEqStateTypeLinear)
+
+         if (present(thermalExpansionCoeff) .or. &
+             present(salineContractionCoeff)) then
+            call ocn_equation_of_state_linear_density_gpu(nVertLevels,  &
+                     nCells, kDisplaced, displacement_type,         &
+                     indexT, indexS, activeTracers, density, err,   &
+                     thermalExpansionCoeff, salineContractionCoeff, &
+                     tracersSurfaceValue)
+         else
+            call ocn_equation_of_state_linear_density_gpu(nVertLevels, &
+                     nCells, kDisplaced, displacement_type,        &
+                     indexT, indexS, activeTracers, density, err,  &
+                     tracersSurfaceValue)
+         endif
+
+      case (ocnEqStateTypeJM)
+
+         if (present(thermalExpansionCoeff) .or. &
+             present(salineContractionCoeff)) then
+            call ocn_equation_of_state_jm_density_gpu(nVertLevels,        &
+                     nCells, kDisplaced, displacement_type,           &
+                     indexT, indexS, activeTracers, density, err,     &
+                     thermalExpansionCoeff, salineContractionCoeff,   &
+                     tracersSurfaceValue)
+
+         else
+            call ocn_equation_of_state_jm_density_gpu(nVertLevels,        &
+                     nCells, kDisplaced, displacement_type,           &
+                     indexT, indexS, activeTracers, density, err,     &
+                     tracersSurfaceValue)
+         endif
+
+      case (ocnEqStateTypeWright)
+
+         if (present(thermalExpansionCoeff) .or. &
+             present(salineContractionCoeff)) then
+            call ocn_equation_of_state_wright_density_gpu(nVertLevels,    &
+                     nCells, kDisplaced, displacement_type,           &
+                     indexT, indexS, activeTracers, zMid,             &
+                     maxLevelCell, density, err,                      &
+                     thermalExpansionCoeff, salineContractionCoeff,   &
+                     tracersSurfaceValue)
+
+         else
+            call ocn_equation_of_state_wright_density_gpu(nVertLevels,    &
+                     nCells, kDisplaced, displacement_type,           &
+                     indexT, indexS, activeTracers, zMid,             &
+                     maxLevelCell, density, err, tracersSurfaceValue)
+         endif
+
+      case default
+         !*** error handled during init
+      end select
+
+      !*** stop timer and exit
+
+      call mpas_timer_stop("equation of state gpu")
+
+      !-----------------------------------------------------------------
+
+   end subroutine ocn_equation_of_state_density_original_gpu!}}}
+
 
 !***********************************************************************
 !
@@ -516,6 +828,49 @@ contains
          + coeff_mushy * salinity / (1.0_RKIND - salinity / 1e3_RKIND)
 
     end function ocn_freezing_temperature!}}}
+
+    real (kind=RKIND) function ocn_freezing_temperature_gpu(salinity, pressure, inLandIceCavity)!{{{
+!$acc routine seq
+      real (kind=RKIND), intent(in) :: salinity !< Input: Salinity value of water for freezing temperature
+      real (kind=RKIND), intent(in) :: pressure !< Input: Pressure value for freezing temperature
+      logical, intent(in) :: inLandIceCavity !< Input: flag indicating if the freezing temperature is computed
+                                             !         in land ice cavities or in open ocean
+
+      real (kind=RKIND) :: coeff_0, coeff_S, coeff_p, coeff_pS, az1_liq
+      real (kind=RKIND) :: coeff_mushy
+
+      if(inLandIceCavity) then
+!NV!         coeff_0 = config_land_ice_cavity_freezing_temperature_coeff_0
+!NV!         coeff_S = config_land_ice_cavity_freezing_temperature_coeff_S
+!NV!         coeff_p = config_land_ice_cavity_freezing_temperature_coeff_p
+!NV!         coeff_pS = config_land_ice_cavity_freezing_temperature_coeff_pS
+!NV!         coeff_mushy = 0.0_RKIND
+         coeff_0 = mod_lic_coeff_0
+         coeff_S = mod_lic_coeff_S
+         coeff_p = mod_lic_coeff_p
+         coeff_pS = mod_lic_coeff_pS
+         coeff_mushy = 0.0_RKIND
+      else
+!NV!         coeff_0 = config_open_ocean_freezing_temperature_coeff_0
+!NV!         coeff_S = config_open_ocean_freezing_temperature_coeff_S
+!NV!         coeff_p = config_open_ocean_freezing_temperature_coeff_p
+!NV!         coeff_pS = config_open_ocean_freezing_temperature_coeff_pS
+!NV!         az1_liq = config_open_ocean_freezing_temperature_coeff_mushy_az1_liq
+         coeff_0 = mod_oo_coeff_0
+         coeff_S = mod_oo_coeff_S
+         coeff_p = mod_oo_coeff_p
+         coeff_pS = mod_oo_coeff_pS
+         az1_liq = mod_oo_az1_liq
+         coeff_mushy = 1.0_RKIND / az1_liq
+      end if
+
+      ocn_freezing_temperature_gpu = coeff_0 &
+         + coeff_S * salinity &
+         + coeff_p * pressure &
+         + coeff_pS * pressure * salinity &
+         + coeff_mushy * salinity / (1.0_RKIND - salinity / 1e3_RKIND)
+
+    end function ocn_freezing_temperature_gpu!}}}
 
 !***********************************************************************
 !

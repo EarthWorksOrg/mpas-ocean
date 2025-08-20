@@ -80,6 +80,9 @@ module ocn_eddy_parameterization_helpers
               gradZMidEdge(nVertLevels, nEdges), &
               gradZMidTopOfEdge(nVertLevels+1, nEdges))
 
+!$acc update host(minLevelCell,maxLevelCell,minLevelEdgeBot,maxLevelEdgeTop,cellsOnEdge,dcEdge,&
+!$acc             displacedDensity,density,zMid,layerThickEdgeMean,gradDensityEddy)
+
      !$omp parallel
      !$omp do schedule(runtime) private(k)
      do iEdge=1,nEdgesAll
@@ -173,6 +176,7 @@ module ocn_eddy_parameterization_helpers
      end do
      !$omp end do
      !$omp end parallel
+!$acc update device(gradDensityEddy)
      deallocate(gradDensityEdge, &
                 dDensityDzTopOfCell, &
                 gradDensityTopOfEdge, &
@@ -210,9 +214,12 @@ module ocn_eddy_parameterization_helpers
      nCells = nCellsAll
 
      if ( config_eddyMLD_use_old ) then
-       call mpas_pool_get_array(forcingPool, 'landIcePressure', landIcePressure)
-       call mpas_pool_get_array(forcingPool, 'landIceDraft', landIceDraft)
-       call mpas_pool_get_array(forcingPool, 'landIceMask', landIceMask)
+       call mpas_pool_get_array_gpu(forcingPool, 'landIcePressure', landIcePressure)
+       call mpas_pool_get_array_gpu(forcingPool, 'landIceDraft', landIceDraft)
+       call mpas_pool_get_array_gpu(forcingPool, 'landIceMask', landIceMask)
+!$acc update host(landIcePressure,landIceDraft,landIceMask,&
+!$acc             maxLevelCell,&
+!$acc             pressure,potentialDensity,zMid,dThreshMLD,indMLD)
 
        allocate(pressureAdjustedForLandIce(nVertLevels, size(pressure,2)))
 
@@ -294,10 +301,14 @@ module ocn_eddy_parameterization_helpers
           !$omp end parallel
         end if
 
+!$acc update device(dThreshMLD,indMLD)
         deallocate(pressureAdjustedForLandIce)
 
     else ! fixed mixed layer depth code
-       call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, 1)
+       call mpas_pool_get_array_gpu(statePool, 'layerThickness', layerThickness, 1)
+!$acc update host(layerThickness,&
+!$acc             maxLevelCell,&
+!$acc             potentialDensity,dThreshMLD,indMLD)
        allocate(depth(nVertLevels))
        refDepth = config_eddyMLD_reference_depth
 
@@ -355,6 +366,7 @@ module ocn_eddy_parameterization_helpers
        !$omp end do
        !$omp end parallel
 
+!$acc update device(dThreshMLD,indMLD)
        deallocate(depth)
 
     end if !end mld calculation choice

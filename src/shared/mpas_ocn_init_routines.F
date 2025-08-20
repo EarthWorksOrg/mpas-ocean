@@ -134,81 +134,28 @@ contains
 
       call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
 
-      call mpas_pool_get_array(meshPool, 'boundaryCell', boundaryCellTmp)
+      call mpas_pool_get_array_gpu(meshPool, 'boundaryCell', boundaryCellTmp)
 
-      call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity, 1)
-      call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, 1)
-      call mpas_pool_get_array(statePool, 'ssh', ssh, 1)
+      call mpas_pool_get_array_gpu(statePool, 'normalVelocity', normalVelocity, 1)
+      call mpas_pool_get_array_gpu(statePool, 'layerThickness', layerThickness, 1)
+      call mpas_pool_get_array_gpu(statePool, 'ssh', ssh, 1)
 
-      call mpas_pool_get_array(forcingPool, 'seaIcePressure', seaIcePressure)
-      call mpas_pool_get_array(forcingPool, 'atmosphericPressure', atmosphericPressure)
-      call mpas_pool_get_array(forcingPool, 'frazilSurfacePressure', frazilSurfacePressure)
+      call mpas_pool_get_array_gpu(forcingPool, 'seaIcePressure', seaIcePressure)
+      call mpas_pool_get_array_gpu(forcingPool, 'atmosphericPressure', atmosphericPressure)
+      call mpas_pool_get_array_gpu(forcingPool, 'frazilSurfacePressure', frazilSurfacePressure)
 
-      call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, 1)
+      call mpas_pool_get_array_gpu(tracersPool, 'activeTracers', activeTracers, 1)
+!$acc update host(boundaryCellTmp,normalVelocity,layerThickness,ssh,seaIcePressure,atmosphericPressure,frazilSurfacePressure)
 
       if (.not. config_do_restart) then
          do iCell=1,nCells
             boundaryLayerDepth(iCell) = layerThickness(minLevelCell(iCell), iCell) * 0.5_RKIND
             indMLD(iCell) = minLevelCell(iCell)
          end do
+!$acc update device(boundaryLayerDepth,indMLD)
       end if
 
-#ifdef MPAS_OPENACC
-      !$acc enter data copyin(layerThickness, normalVelocity)
-      !$acc update device (normalTransportVelocity, &
-      !$acc                normalGMBolusVelocity)
-      !$acc enter data copyin(atmosphericPressure, seaIcePressure)
-      !$acc enter data copyin(ssh)
-      !$acc enter data copyin(activeTracers)
-      !$acc update device(tracersSurfaceValue)
-      if ( associated(frazilSurfacePressure) ) then
-         !$acc enter data copyin(frazilSurfacePressure)
-      endif
-      if (landIcePressureOn) then
-         !$acc enter data copyin(landIcePressure)
-         !$acc enter data copyin(landIceDraft)
-      endif
-#endif
       call ocn_diagnostic_solve(dt,  statePool, forcingPool, meshPool, scratchPool, tracersPool)
-#ifdef MPAS_OPENACC
-      !$acc update host(layerThickEdgeFlux, layerThickEdgeMean)
-      !$acc update host(relativeVorticity, circulation)
-      !$acc update host(vertTransportVelocityTop, &
-      !$acc             vertGMBolusVelocityTop, &
-      !$acc             relativeVorticityCell, &
-      !$acc             divergence, &
-      !$acc             kineticEnergyCell, &
-      !$acc             tangentialVelocity, &
-      !$acc             vertVelocityTop)
-      !$acc update host(normRelVortEdge, normPlanetVortEdge, &
-      !$acc             normalizedRelativeVorticityCell)
-      !$acc update host (surfacePressure)
-      !$acc update host(zMid, zTop)
-      !$acc exit data copyout(ssh)
-      !$acc exit data delete(activeTracers)
-      !$acc update host(tracersSurfaceValue)
-      !$acc update host(normalVelocitySurfaceLayer)
-      !$acc exit data delete (atmosphericPressure, seaIcePressure)
-      !$acc update host(density, potentialDensity, displacedDensity)
-      !$acc update host(thermExpCoeff,  &
-      !$acc&            salineContractCoeff)
-      !$acc update host(montgomeryPotential, pressure)
-      !$acc update host(RiTopOfCell, &
-      !$acc             BruntVaisalaFreqTop)
-      !$acc update host(tracersSurfaceLayerValue, &
-      !$acc             indexSurfaceLayerDepth, &
-      !$acc             normalVelocitySurfaceLayer, &
-      !$acc             sfcFlxAttCoeff, &
-      !$acc             surfaceFluxAttenuationCoefficientRunoff)
-      if ( associated(frazilSurfacePressure) ) then
-         !$acc exit data delete(frazilSurfacePressure)
-      endif
-      if (landIcePressureOn) then
-         !$acc exit data delete(landIcePressure)
-         !$acc exit data delete(landIceDraft)
-      endif
-      !$acc exit data delete(layerThickness, normalVelocity)
-#endif
 
       layerThickness(:, nCells+1) = 0.0_RKIND
 
@@ -220,17 +167,20 @@ contains
          
          normalVelocity(1:minLevelEdgeTop(iEdge)-1,iEdge) = -1.0e34_RKIND
       end do
+!$acc update device(layerThickness,normalVelocity)
 
       call mpas_pool_begin_iteration(tracersPool)
       do while ( mpas_pool_get_next_member(tracersPool, groupItr) )
          if ( groupItr % memberType == MPAS_POOL_FIELD ) then
-            call mpas_pool_get_array(tracersPool, groupItr % memberName, tracersGroup, 1)
+            call mpas_pool_get_array_gpu(tracersPool, groupItr % memberName, tracersGroup, 1)
+!$acc update host(tracersGroup)
             if ( associated(tracersGroup) ) then
                do iCell=1,nCells
                   tracersGroup(:, maxLevelCell(iCell)+1:nVertLevels,iCell) =  -1.0e34_RKIND
                   tracersGroup(:, 1:minLevelCell(iCell)-1,iCell) =  -1.0e34_RKIND
                end do
             end if
+!$acc update device(tracersGroup)
          end if
       end do
 
@@ -240,6 +190,7 @@ contains
       do iEdge = 1, nEdges
          normalTransportVelocity(:, iEdge) = normalVelocity(:, iEdge)
       end do
+!$acc update device(normalTransportVelocity)
 
       ! ------------------------------------------------------------------
       ! End: Accumulating various parametrizations of the transport velocity
@@ -257,6 +208,7 @@ contains
                        velocityZonal,        &
                        velocityMeridional    &
                       )
+!$acc update device(velocityX,velocityY,velocityZ,velocityZonal,velocityMeridional)
 
       call mpas_pool_initialize_time_levels(statePool)
 

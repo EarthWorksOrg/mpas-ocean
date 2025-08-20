@@ -47,8 +47,11 @@ module ocn_surface_bulk_forcing
    !--------------------------------------------------------------------
 
    public :: ocn_surface_bulk_forcing_tracers, &
+             ocn_surface_bulk_forcing_tracers_gpu, &
              ocn_surface_bulk_forcing_vel, &
+             ocn_surface_bulk_forcing_vel_gpu, &
              ocn_surface_bulk_forcing_thick, &
+             ocn_surface_bulk_forcing_thick_gpu, &
              ocn_surface_bulk_forcing_init
 
    !--------------------------------------------------------------------
@@ -128,6 +131,57 @@ contains
 
    end subroutine ocn_surface_bulk_forcing_tracers!}}}
 
+   subroutine ocn_surface_bulk_forcing_tracers_gpu(meshPool, groupName, forcingPool, tracerGroup,   &
+      tracersSurfaceFlux, tracersSurfaceFluxRunoff, tracersSurfaceFluxRemoved, dt, layerThickness, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(in) :: meshPool !< Input: mesh information
+      character (len=*) :: groupName !< Input: Name of tracer group
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(inout) :: forcingPool !< Input: Forcing information
+      real (kind=RKIND), dimension(:,:,:), intent(inout) :: tracerGroup
+      real (kind=RKIND), dimension(:,:), intent(inout) :: tracersSurfaceFlux !< Input/Output: Surface flux for tracer group
+      real (kind=RKIND), dimension(:,:), intent(inout) ::   &
+         tracersSurfaceFluxRunoff !< Input/Output: Surface flux for tracer group due to river runoff
+      real (kind=RKIND), dimension(:,:), intent(inout) ::   &
+         tracersSurfaceFluxRemoved !< Input/Output: Accumulator for ignored Surface flux for tracer group
+      real (kind=RKIND), dimension(:,:), intent(in) :: layerThickness
+      real (kind=RKIND), intent(in) :: dt
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: Error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      err = 0
+
+      call mpas_timer_start("bulk_" // trim(groupName) //" gpu")
+      if ( trim(groupName) == 'activeTracers' ) then
+         call ocn_surface_bulk_forcing_active_tracers_gpu(meshPool, forcingPool, tracerGroup,  &
+            tracersSurfaceFlux, tracersSurfaceFluxRunoff, tracersSurfaceFluxRemoved, layerThickness, dt, err)
+      end if
+      call mpas_timer_stop("bulk_" // trim(groupName) //" gpu")
+
+   end subroutine ocn_surface_bulk_forcing_tracers_gpu!}}}
+
 !***********************************************************************
 !
 !  routine ocn_surface_bulk_forcing_vel
@@ -198,10 +252,6 @@ contains
       call mpas_pool_get_array(forcingPool, 'windStressZonal', windStressZonal)
       call mpas_pool_get_array(forcingPool, 'windStressMeridional', windStressMerid)
 
-      !*** Transfer data to device
-      !$acc enter data &
-      !$acc    copyin(windStressZonal, windStressMerid)
-
       !*** Forcing needed over halo regions
 
       nEdges = nEdgesHalo(3)
@@ -211,16 +261,9 @@ contains
       !*** ocean model wind stress by averaging cell-centered wind
       !*** stress to edges and then rotating vectors
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop &
-      !$acc    present(cellsOnEdge, angleEdge, sfcStress, &
-      !$acc            windStressZonal, windStressMerid) &
-      !$acc    private(cell1, cell2, zonalWSEdge, meridWSEdge)
-#else
       !$omp parallel
       !$omp do schedule(runtime) &
       !$omp    private(cell1, cell2, zonalWSEdge, meridWSEdge)
-#endif
       do iEdge = 1, nEdges
         cell1 = cellsOnEdge(1, iEdge)
         cell2 = cellsOnEdge(2, iEdge)
@@ -234,38 +277,136 @@ contains
                            cos(angleEdge(iEdge))*zonalWSEdge + &
                            sin(angleEdge(iEdge))*meridWSEdge
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
-#endif
 
       ! Calculate surface flux magnitude at cell centers
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop &
-      !$acc    present(sfcStressMag, windStressZonal, &
-      !$acc                          windStressMerid)
-#else
       !$omp do schedule(runtime)
-#endif
       do iCell = 1, nCells
         sfcStressMag(iCell) = sfcStressMag(iCell) + &
                               sqrt( windStressZonal(iCell)**2 &
                                   + windStressMerid(iCell)**2 )
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
-
-      !*** Transfer any needed data back to host and delete inputs
-      !$acc exit data &
-      !$acc    delete(windStressZonal, windStressMerid)
 
       call mpas_timer_stop("bulk_ws")
 
       !-----------------------------------------------------------------
 
    end subroutine ocn_surface_bulk_forcing_vel!}}}
+
+   subroutine ocn_surface_bulk_forcing_vel_gpu( &
+                               forcingPool, sfcStress, &
+                               sfcStressMag, err)!{{{
+
+      !-----------------------------------------------------------------
+      ! input variables
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: &
+         forcingPool         !< [in] Forcing structure w/ sfc stresses
+
+      !-----------------------------------------------------------------
+      ! input/output variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:), intent(inout) :: &
+         sfcStress, & !< [inout] Array for surface stress
+         sfcStressMag !< [inout] Array for magnitude of surface stress
+
+      !-----------------------------------------------------------------
+      ! output variables
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< [out] Error flag
+
+      !-----------------------------------------------------------------
+      ! local variables
+      !-----------------------------------------------------------------
+
+      integer ::         &
+         iEdge, iCell,   &! loop indices for edge, cell loops
+         nCells, nEdges, &! number of cells, edges participating
+         cell1, cell2     ! neighbor cell indices across edge
+
+      real (kind=RKIND) :: &
+         meridWSEdge,      &! meridional wind stress avg to edge
+         zonalWSEdge        ! zonal wind stress averaged to edge
+
+      real (kind=RKIND), dimension(:), pointer :: &
+         windStressZonal, &! zonal wind stress from forcing
+         windStressMerid   ! meridional wind stress from forcing
+
+      ! End preamble
+      !-----------------------------------------------------------------
+      ! Begin code
+
+      !*** Set error code and exit early if bulk wind stress not on
+      !*** Otherwise start timer
+
+      err = 0
+      if (bulkWindStressOff) return
+
+      call mpas_timer_start("bulk_ws gpu", .false.)
+
+      call mpas_pool_get_array_gpu(forcingPool, 'windStressZonal', windStressZonal)
+      call mpas_pool_get_array_gpu(forcingPool, 'windStressMeridional', windStressMerid)
+
+      !*** Forcing needed over halo regions
+
+      nEdges = nEdgesHalo(3)
+      nCells = nCellsHalo(2)
+
+!$acc data present(cellsOnEdge,angleEdge,&
+!$acc              windStressZonal,windStressMerid,sfcStress,sfcStressMag)
+
+      !*** Convert coupled climate model wind stress to internal
+      !*** ocean model wind stress by averaging cell-centered wind
+      !*** stress to edges and then rotating vectors
+
+      !$omp parallel
+      !$omp do schedule(runtime) &
+      !$omp    private(cell1, cell2, zonalWSEdge, meridWSEdge)
+!$acc parallel
+!$acc loop gang vector private(cell1,cell2,zonalWSEdge,meridWSEdge)
+      do iEdge = 1, nEdges
+        cell1 = cellsOnEdge(1, iEdge)
+        cell2 = cellsOnEdge(2, iEdge)
+
+        zonalWSEdge = 0.5_RKIND * (windStressZonal(cell1) + &
+                                   windStressZonal(cell2))
+        meridWSEdge = 0.5_RKIND * (windStressMerid(cell1) + &
+                                   windStressMerid(cell2))
+
+        sfcStress(iEdge) = sfcStress(iEdge) + &
+                           cos(angleEdge(iEdge))*zonalWSEdge + &
+                           sin(angleEdge(iEdge))*meridWSEdge
+      end do
+!$acc end parallel
+      !$omp end do
+
+      ! Calculate surface flux magnitude at cell centers
+
+      !$omp do schedule(runtime)
+!$acc parallel
+!$acc loop gang vector
+      do iCell = 1, nCells
+        sfcStressMag(iCell) = sfcStressMag(iCell) + &
+                              sqrt( windStressZonal(iCell)**2 &
+                                  + windStressMerid(iCell)**2 )
+      end do
+!$acc end parallel
+      !$omp end do
+      !$omp end parallel
+
+!$acc end data
+
+      call mpas_timer_stop("bulk_ws gpu")
+
+      !-----------------------------------------------------------------
+
+   end subroutine ocn_surface_bulk_forcing_vel_gpu!}}}
 
 !***********************************************************************
 !
@@ -328,35 +469,90 @@ contains
       nCells = nCellsHalo( 2 )
 
       ! Build surface fluxes at cell centers
-#ifdef MPAS_OPENACC
-      !$acc enter data copyin(evaporationFlux, snowFlux, seaIceFreshWaterFlux, icebergFreshWaterFlux, &
-      !$acc     riverRunoffFlux, iceRunoffFlux, rainFlux)
-
-      !$acc parallel loop &
-      !$acc     present(surfaceThicknessFlux, surfaceThicknessFluxRunoff, evaporationFlux, snowFlux, &
-      !$acc     seaIceFreshWaterFlux, icebergFreshWaterFlux, riverRunoffFlux, iceRunoffFlux, rainFlux)
-#else
       !$omp parallel
       !$omp do schedule(runtime)
-#endif
       do iCell = 1, nCells
         surfaceThicknessFlux(iCell) = surfaceThicknessFlux(iCell) + ( snowFlux(iCell) + rainFlux(iCell) + evaporationFlux(iCell) &
                                     + seaIceFreshWaterFlux(iCell) + icebergFreshWaterFlux(iCell) + iceRunoffFlux(iCell) ) / rho_sw
         surfaceThicknessFluxRunoff(iCell) = riverRunoffFlux(iCell) / rho_sw
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
-
-#ifdef MPAS_OPENACC
-      !$acc exit data delete(evaporationFlux, snowFlux, seaIceFreshWaterFlux, icebergFreshWaterFlux, &
-      !$acc     riverRunoffFlux, iceRunoffFlux, rainFlux)
-#endif
 
       call mpas_timer_stop("bulk_thick")
 
    end subroutine ocn_surface_bulk_forcing_thick!}}}
+
+   subroutine ocn_surface_bulk_forcing_thick_gpu(forcingPool, surfaceThicknessFlux, surfaceThicknessFluxRunoff, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(inout) :: forcingPool !< Input: Forcing information
+      real (kind=RKIND), dimension(:), intent(inout) :: surfaceThicknessFlux !< Input/Output: Array for surface thickness flux
+      real (kind=RKIND), dimension(:), intent(inout) ::  &
+         surfaceThicknessFluxRunoff !< Input/Output: Array for surface thickness flux due to river runoff
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: Error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iCell, nCells
+
+      real (kind=RKIND), dimension(:), pointer :: evaporationFlux, snowFlux
+      real (kind=RKIND), dimension(:), pointer :: seaIceFreshWaterFlux, icebergFreshWaterFlux, riverRunoffFlux, iceRunoffFlux
+      real (kind=RKIND), dimension(:), pointer :: rainFlux
+
+      err = 0
+
+      if (bulkThicknessFluxOff) return
+
+      call mpas_timer_start("bulk_thick gpu", .false.)
+
+      call mpas_pool_get_array_gpu(forcingPool, 'evaporationFlux', evaporationFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'snowFlux', snowFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'seaIceFreshWaterFlux', seaIceFreshWaterFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'icebergFreshWaterFlux', icebergFreshWaterFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'riverRunoffFlux', riverRunoffFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'iceRunoffFlux', iceRunoffFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'rainFlux', rainFlux)
+
+      nCells = nCellsHalo( 2 )
+
+      ! Build surface fluxes at cell centers
+!$acc data present(surfaceThicknessFlux,surfaceThicknessFluxRunoff,&
+!$acc              snowFlux,rainFlux,evaporationFlux,seaIceFreshWaterFlux, &
+!$acc              icebergFreshWaterFlux,iceRunoffFlux,riverRunoffFlux)
+      !$omp parallel
+      !$omp do schedule(runtime)
+!$acc parallel
+!$acc loop gang vector
+      do iCell = 1, nCells
+        surfaceThicknessFlux(iCell) = surfaceThicknessFlux(iCell) + ( snowFlux(iCell) + rainFlux(iCell) + evaporationFlux(iCell) &
+                                    + seaIceFreshWaterFlux(iCell) + icebergFreshWaterFlux(iCell) + iceRunoffFlux(iCell) ) / rho_sw
+        surfaceThicknessFluxRunoff(iCell) = riverRunoffFlux(iCell) / rho_sw
+      end do
+!$acc end parallel
+      !$omp end do
+      !$omp end parallel
+
+!$acc end data
+
+      call mpas_timer_stop("bulk_thick gpu")
+
+   end subroutine ocn_surface_bulk_forcing_thick_gpu!}}}
 
 !***********************************************************************
 !
@@ -602,6 +798,210 @@ contains
       !$omp end parallel
 
    end subroutine ocn_surface_bulk_forcing_active_tracers!}}}
+
+   subroutine ocn_surface_bulk_forcing_active_tracers_gpu(meshPool, forcingPool, tracerGroup,  &
+      tracersSurfaceFlux, tracersSurfaceFluxRunoff, tracersSurfaceFluxRemoved, layerThickness, dt, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(in) :: meshPool !< Input: mesh information
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(inout) :: forcingPool !< Input: Forcing information
+      real (kind=RKIND), dimension(:,:), intent(inout) :: tracersSurfaceFlux
+      real (kind=RKIND), dimension(:,:), intent(inout) :: tracersSurfaceFluxRunoff
+      real (kind=RKIND), dimension(:,:), intent(inout) :: tracersSurfaceFluxRemoved
+      real (kind=RKIND), dimension(:,:,:), intent(inout) :: tracerGroup
+      real (kind=RKIND), dimension(:,:), intent(in) :: layerThickness
+      real (kind=RKIND), intent(in) :: dt
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: Error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iCell, nCells
+      integer, pointer :: index_temperature_fluxPtr, index_salinity_fluxPtr
+      integer :: index_temperature_flux, index_salinity_flux
+      integer, dimension(:), pointer :: nCellsArray
+
+      type(mpas_pool_type),pointer :: tracersSurfaceFluxPool
+
+      real (kind=RKIND), dimension(:), pointer :: latentHeatFlux, sensibleHeatFlux, longWaveHeatFluxUp, longWaveHeatFluxDown, &
+                                                  seaIceHeatFlux, icebergHeatFlux, evaporationFlux, riverRunoffFlux
+      real (kind=RKIND), dimension(:), pointer :: seaIceFreshWaterFlux, icebergFreshWaterFlux, seaIceSalinityFlux, iceRunoffFlux
+      real (kind=RKIND), dimension(:), pointer :: shortWaveHeatFlux, penetrativeTemperatureFlux
+      real (kind=RKIND), dimension(:), pointer :: snowFlux, rainFlux
+      real (kind=RKIND), dimension(:), pointer :: rainTemperatureFlux, evapTemperatureFlux, &
+                                                  seaIceTemperatureFlux, icebergTemperatureFlux, &
+                                                  totalFreshWaterTemperatureFlux
+      real (kind=RKIND) :: requiredSalt, allowedSalt, surfaceTemperatureFluxWithoutRunoff
+
+      err = 0
+
+      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+
+      call mpas_pool_get_subpool(forcingPool, 'tracersSurfaceFlux',tracersSurfaceFluxPool)
+
+      call mpas_pool_get_dimension(tracersSurfaceFluxPool, &
+                                  'index_temperatureSurfaceFlux', &
+                                   index_temperature_fluxPtr)
+      call mpas_pool_get_dimension(tracersSurfaceFluxPool, &
+                                  'index_salinitySurfaceFlux', &
+                                   index_salinity_fluxPtr)
+      index_temperature_flux = index_temperature_fluxPtr
+      index_salinity_flux    = index_salinity_fluxPtr
+
+      call mpas_pool_get_array_gpu(forcingPool, 'latentHeatFlux', latentHeatFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'sensibleHeatFlux', sensibleHeatFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'longWaveHeatFluxUp', longWaveHeatFluxUp)
+      call mpas_pool_get_array_gpu(forcingPool, 'longWaveHeatFluxDown', longWaveHeatFluxDown)
+      call mpas_pool_get_array_gpu(forcingPool, 'seaIceHeatFlux', seaIceHeatFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'icebergHeatFlux', icebergHeatFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'rainFlux', rainFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'snowFlux', snowFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'shortWaveHeatFlux', shortWaveHeatFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'evaporationFlux', evaporationFlux)
+
+      call mpas_pool_get_array_gpu(forcingPool, 'seaIceFreshWaterFlux', seaIceFreshWaterFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'icebergFreshWaterFlux', icebergFreshWaterFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'seaIceSalinityFlux', seaIceSalinityFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'iceRunoffFlux', iceRunoffFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'riverRunoffFlux', riverRunoffFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'penetrativeTemperatureFlux', penetrativeTemperatureFlux)
+
+      call mpas_pool_get_array_gpu(forcingPool, 'rainTemperatureFlux', rainTemperatureFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'evapTemperatureFlux', evapTemperatureFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'seaIceTemperatureFlux', seaIceTemperatureFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'icebergTemperatureFlux', icebergTemperatureFlux)
+      call mpas_pool_get_array_gpu(forcingPool, 'totalFreshWaterTemperatureFlux', totalFreshWaterTemperatureFlux)
+
+      nCells = nCellsArray( 3 )
+
+!$acc data present(minLevelCell,&
+!$acc              tracerGroup,tracersSurfaceFlux,tracersSurfaceFluxRunoff,tracersSurfaceFluxRemoved,layerThickness,&
+!$acc              latentHeatFlux,sensibleHeatFlux,longWaveHeatFluxUp,longWaveHeatFluxDown,&
+!$acc              seaIceHeatFlux,icebergHeatFlux,snowFlux,iceRunoffFlux,seaIceSalinityFlux,&
+!$acc              rainTemperatureFlux,evapTemperatureFlux,rainFlux,evaporationFlux,&
+!$acc              riverRunoffFlux,seaIceTemperatureFlux,seaIceFreshWaterFlux,icebergTemperatureFlux,icebergFreshWaterFlux,&
+!$acc              totalFreshWaterTemperatureFlux,penetrativeTemperatureFlux,shortWaveHeatFlux)
+
+      ! Build surface fluxes at cell centers
+      !$omp parallel
+      !$omp do schedule(runtime) private(allowedSalt, requiredSalt)
+!$acc parallel
+!$acc loop gang vector private(requiredSalt,allowedSalt)
+      do iCell = 1, nCells
+        tracersSurfaceFlux(index_temperature_flux, iCell) = tracersSurfaceFlux(index_temperature_flux, iCell) &
+                                                           + (latentHeatFlux(iCell) + sensibleHeatFlux(iCell) &
+                                                           + longWaveHeatFluxUp(iCell) + longWaveHeatFluxDown(iCell) &
+                                                           + seaIceHeatFlux(iCell) + icebergHeatFlux(iCell) &
+                                                           - (snowFlux(iCell) + iceRunoffFlux(iCell)) &
+                                                           * latent_heat_fusion_mks) * hflux_factor
+
+        ! Negative seaIceSalinityFlux is an extraction of salt from the ocean
+        ! So, we negate seaIceSalinityFlux when determining how much salt this flux needs.
+        requiredSalt = - seaIceSalinityFlux(iCell) * sflux_factor * dt / layerThickness(minLevelCell(iCell), iCell)
+        allowedSalt = min( 4.0_RKIND, tracerGroup(index_salinity_flux, minLevelCell(iCell), iCell) )
+
+        if ( allowedSalt < requiredSalt ) then
+           tracersSurfaceFluxRemoved(index_salinity_flux, iCell) = tracersSurfaceFluxRemoved(index_salinity_flux, iCell)  &
+                                                                 + ( 1 - allowedSalt / requiredSalt ) * seaIceSalinityFlux(iCell) &
+                                                                 * sflux_factor
+
+           tracersSurfaceFlux(index_salinity_flux, iCell) = tracersSurfaceFlux(index_salinity_flux, iCell)  &
+                                                          + ( allowedSalt / requiredSalt ) * seaIceSalinityFlux(iCell) &
+                                                          * sflux_factor
+        else
+           tracersSurfaceFlux(index_salinity_flux, iCell) = tracersSurfaceFlux(index_salinity_flux, iCell)  &
+                                                          + seaIceSalinityFlux(iCell) * sflux_factor
+        end if
+      end do
+!$acc end parallel
+      !$omp end do
+      !$omp end parallel
+      ! assume that snow comes in at 0 C
+
+      ! Surface fluxes of water have an associated heat content, but the coupled system does not account for this
+      ! Assume surface fluxes of water have a temperature dependent on the incoming mass flux.
+      ! Assume surface fluxes of water have zero salinity. So the RHS forcing is zero for salinity.
+      ! Only include this heat forcing when bulk thickness is turned on
+      ! indices on tracerGroup are (iTracer, iLevel, iCell)
+      if (.not. bulkThicknessFluxOff) then
+         !$omp parallel
+         !$omp do schedule(runtime) private(surfaceTemperatureFluxWithoutRunoff)
+!$acc parallel 
+!$acc loop gang vector private(surfaceTemperatureFluxWithoutRunoff)
+         do iCell = 1, nCells
+
+           ! Accumulate fluxes that use the surface temperature
+           rainTemperatureFlux(iCell) = rainFlux(iCell) * tracerGroup(index_temperature_flux,minLevelCell(iCell),iCell) / rho_sw
+           evapTemperatureFlux(iCell) = evaporationFlux(iCell) * tracerGroup(index_temperature_flux,minLevelCell(iCell),iCell) / rho_sw
+
+           ! Runoff can only have a minimum temperature of 0.0C, since it is fresh water.
+           tracersSurfaceFluxRunoff(index_temperature_flux,iCell) = riverRunoffFlux(iCell) &
+                      * max(tracerGroup(index_temperature_flux,minLevelCell(iCell),iCell), 0.0_RKIND) / rho_sw
+
+           ! Accumulate fluxes that use the freezing point
+! mrp performance note: should call ocn_freezing_temperature just once here 
+           seaIceTemperatureFlux(iCell) = seaIceFreshWaterFlux(iCell) * &
+               ocn_freezing_temperature_gpu( tracerGroup(index_salinity_flux, minLevelCell(iCell), iCell), pressure=0.0_RKIND, &
+                                         inLandIceCavity=.false.) / rho_sw
+           icebergTemperatureFlux(iCell) = icebergFreshWaterFlux(iCell) * &
+               ocn_freezing_temperature_gpu( tracerGroup(index_salinity_flux, minLevelCell(iCell), iCell), pressure=0.0_RKIND, &
+                                         inLandIceCavity=.false.) / rho_sw
+
+           surfaceTemperatureFluxWithoutRunoff = rainTemperatureFlux(iCell) + evapTemperatureFlux(iCell) + &
+                                                 seaIceTemperatureFlux(iCell) + icebergTemperatureFlux(iCell)
+
+           tracersSurfaceFlux(index_temperature_flux, iCell) = tracersSurfaceFlux(index_temperature_flux, iCell) &
+              + surfaceTemperatureFluxWithoutRunoff
+
+           ! add runoff contribution for sending through coupler
+           totalFreshWaterTemperatureFlux(iCell) = surfaceTemperatureFluxWithoutRunoff &
+              + tracersSurfaceFluxRunoff(index_temperature_flux,iCell)
+
+           ! Fields with zero temperature are not accumulated. These include:
+           !    snowFlux
+           !    iceRunoffFlux
+
+         end do
+!$acc end parallel
+         !$omp end do
+         !$omp end parallel
+      endif ! bulkThicknessFluxOn
+
+      ! convert short wave heat flux to a temperature flux
+      !$omp parallel
+      !$omp do schedule(runtime)
+!$acc parallel 
+!$acc loop gang vector
+      do iCell = 1, nCells
+         penetrativeTemperatureFlux(iCell) = shortWaveHeatFlux(iCell) * hflux_factor
+      end do
+!$acc end parallel
+      !$omp end do
+      !$omp end parallel
+
+!$acc end data
+
+   end subroutine ocn_surface_bulk_forcing_active_tracers_gpu!}}}
 
 end module ocn_surface_bulk_forcing
 

@@ -253,83 +253,83 @@ contains
       call mpas_pool_get_subpool(domain % blocklist % structs, 'diagnostics', diagnosticsPool)
 
       if (config_use_topographic_wave_drag) then
-         call mpas_pool_get_array(diagnosticsPool, 'topographic_wave_drag', topographic_wave_drag)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'topographic_wave_drag', topographic_wave_drag)
       end if
 
       if ( trim(config_ocean_run_mode) == 'forward' ) then
-         call mpas_pool_get_array(diagnosticsPool, 'wettingVelocity', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'wettingVelocity', &
                    wettingVelocity)
          call mpas_pool_get_field(diagnosticsPool, 'wettingVelocity', &
                    wettingVelocityField)
       end if
 
       if (config_use_GM.or.config_use_Redi) then
-         call mpas_pool_get_array(diagnosticsPool, 'RediKappa', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'RediKappa', &
                    RediKappa)
-         call mpas_pool_get_array(diagnosticsPool, 'RediKappaScaling', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'RediKappaScaling', &
                    RediKappaScaling)
-         call mpas_pool_get_array(diagnosticsPool, 'RediKappaSfcTaper', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'RediKappaSfcTaper', &
                    RediKappaSfcTaper)
-         call mpas_pool_get_array(diagnosticsPool, 'rediLimiterCount', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'rediLimiterCount', &
                    rediLimiterCount)
 
-         call mpas_pool_get_array(diagnosticsPool, 'gmBolusKappa',  &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'gmBolusKappa',  &
                    gmBolusKappa)
-         call mpas_pool_get_array(diagnosticsPool, 'gmKappaScaling', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'gmKappaScaling', &
                    gmKappaScaling)
-         call mpas_pool_get_array(diagnosticsPool, 'RediHorizontalTaper', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'RediHorizontalTaper', &
                    RediHorizontalTaper)
-         call mpas_pool_get_array(diagnosticsPool, 'gmHorizontalTaper', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'gmHorizontalTaper', &
                    gmHorizontalTaper)
-         call mpas_pool_get_array(diagnosticsPool, 'RossbyRadius', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'RossbyRadius', &
                    RossbyRadius)
       end if
 
       if (config_use_GM .or. config_submesoscale_enable) then
-         call mpas_pool_get_array(diagnosticsPool, 'gradDensityEddy', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'gradDensityEddy', &
                    gradDensityEddy)
       end if
 
       if ( config_compute_active_tracer_budgets ) then
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'activeTracerSurfaceFluxTendency', &
                    activeTracerSurfaceFluxTendency)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'temperatureShortWaveTendency', &
                    temperatureShortWaveTendency)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'activeTracerNonLocalTendency', &
                    activeTracerNonLocalTendency)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'activeTracerHorMixTendency', &
                    activeTracerHorMixTendency)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'activeTracerVerticalAdvectionTopFlux', &
                    activeTracerVerticalAdvectionTopFlux)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'activeTracerHorizontalAdvectionEdgeFlux', &
                    activeTracerHorizontalAdvectionEdgeFlux)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'activeTracerHorizontalAdvectionTendency', &
                    activeTracerHorizontalAdvectionTendency)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'activeTracerVerticalAdvectionTendency',  &
                    activeTracerVerticalAdvectionTendency)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'activeTracerVertMixTendency', &
                    activeTracerVertMixTendency)
       end if
 
       if ( config_use_activeTracers_surface_restoring ) then
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'salinitySurfaceRestoringTendency', &
                    salinitySurfaceRestoringTendency)
       end if
 
       ! Retrieve pointers for configurations where land_ice_flux_mode is enabled
       if ( trim(config_land_ice_flux_mode) /= 'off' ) then
-         call mpas_pool_get_array(diagnosticsPool, 'topDrag', topDrag)
-         call mpas_pool_get_array(diagnosticsPool, 'topDragMagnitude', topDragMag)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'topDrag', topDrag)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'topDragMagnitude', topDragMag)
          call mpas_pool_get_dimension(diagnosticsPool, &
                    'index_landIceBoundaryLayerTemperature', indexBLTPtr)
          call mpas_pool_get_dimension(diagnosticsPool, &
@@ -343,211 +343,211 @@ contains
          indexHeatTrans = indexHeatTransPtr
          indexSaltTrans = indexSaltTransPtr
 
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                    'landIceBoundaryLayerTracers', landIceBoundaryLayerTracers)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                    'landIceTracerTransferVelocities', &
                     landIceTracerTransferVelocities)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                    'landIceFrictionVelocity', landIceFrictionVelocity)
       end if
 
       if ( trim(config_ocean_run_mode) == 'init' ) then
-         call mpas_pool_get_array(diagnosticsPool, 'rx1Edge', rx1Edge, 1)
-         call mpas_pool_get_array(diagnosticsPool, 'rx1Cell', rx1Cell, 1)
-         call mpas_pool_get_array(diagnosticsPool, 'rx1MaxEdge', rx1MaxEdge, 1)
-         call mpas_pool_get_array(diagnosticsPool, 'rx1InitSmoothingMask', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'rx1Edge', rx1Edge, 1)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'rx1Cell', rx1Cell, 1)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'rx1MaxEdge', rx1MaxEdge, 1)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'rx1InitSmoothingMask', &
                    smoothingMask, 1)
-         call mpas_pool_get_array(diagnosticsPool, 'verticalStretch', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'verticalStretch', &
                    verticalStretch, 1)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'globalVerticalStretchMax', &
                    globalVerticalStretchMax, 1)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'globalVerticalStretchMin', &
                    globalVerticalStretchMin, 1)
       end if
 
       if (config_use_topographic_wave_drag) then
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'topographic_wave_drag', &
                    topographic_wave_drag)
       end if
 
       if (config_use_tidal_potential_forcing) then
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'ssh_sal', &
                    ssh_sal)
       end if
 
       if ( trim(config_ocean_run_mode) == 'init' .or. &
                 config_AM_debugDiagnostics_enable ) then
-         call mpas_pool_get_array(diagnosticsPool, 'rx1MaxCell', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'rx1MaxCell', &
                    rx1MaxCell, 1)
-         call mpas_pool_get_array(diagnosticsPool, 'globalRx1Max', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'globalRx1Max', &
                    globalRx1Max, 1)
       end if
 
       if ( trim(config_ocean_run_mode) == 'forward' .or. &
            trim(config_ocean_run_mode) == 'analysis' ) then
-         call mpas_pool_get_array(diagnosticsPool, 'k33', k33)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'k33', k33)
 
-         call mpas_pool_get_array(diagnosticsPool, 'gradSSH', gradSSH)
-         call mpas_pool_get_array(diagnosticsPool, 'gradSSHX', gradSSHX)
-         call mpas_pool_get_array(diagnosticsPool, 'gradSSHY', gradSSHY)
-         call mpas_pool_get_array(diagnosticsPool, 'gradSSHZ', gradSSHZ)
-         call mpas_pool_get_array(diagnosticsPool, 'gradSSHZonal', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'gradSSH', gradSSH)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'gradSSHX', gradSSHX)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'gradSSHY', gradSSHY)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'gradSSHZ', gradSSHZ)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'gradSSHZonal', &
                    gradSSHZonal)
-         call mpas_pool_get_array(diagnosticsPool, 'gradSSHMeridional', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'gradSSHMeridional', &
                    gradSSHMeridional)
-         call mpas_pool_get_array(diagnosticsPool, 'SSHGradient', SSHGradient)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SSHGradient', SSHGradient)
 
-         call mpas_pool_get_array(diagnosticsPool, 'viscosity', viscosity)
-         call mpas_pool_get_array(diagnosticsPool, 'divergence', divergence)
-         call mpas_pool_get_array(diagnosticsPool, 'circulation', circulation)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'viscosity', viscosity)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'divergence', divergence)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'circulation', circulation)
 
-         call mpas_pool_get_array(diagnosticsPool, 'velocityX', velocityX)
-         call mpas_pool_get_array(diagnosticsPool, 'velocityY', velocityY)
-         call mpas_pool_get_array(diagnosticsPool, 'velocityZ', velocityZ)
-         call mpas_pool_get_array(diagnosticsPool, 'velocityMeridional', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'velocityX', velocityX)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'velocityY', velocityY)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'velocityZ', velocityZ)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'velocityMeridional', &
                    velocityMeridional)
-         call mpas_pool_get_array(diagnosticsPool, 'velocityZonal', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'velocityZonal', &
                    velocityZonal)
 
-         call mpas_pool_get_array(diagnosticsPool, 'RiTopOfCell', RiTopOfCell)
-         call mpas_pool_get_array(diagnosticsPool, 'RiTopOfEdge', RiTopOfEdge)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'RiTopOfCell', RiTopOfCell)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'RiTopOfEdge', RiTopOfEdge)
 
-         call mpas_pool_get_array(diagnosticsPool, 'slopeTriadUp', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'slopeTriadUp', &
                    slopeTriadUp)
-         call mpas_pool_get_array(diagnosticsPool, 'slopeTriadDown', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'slopeTriadDown', &
                    slopeTriadDown)
 
          ! GM-related fields
-         call mpas_pool_get_array(diagnosticsPool, 'cGMphaseSpeed', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'cGMphaseSpeed', &
                    cGMphaseSpeed)
-         call mpas_pool_get_array(diagnosticsPool, 'gmStreamFuncTopOfEdge', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'gmStreamFuncTopOfEdge', &
                    gmStreamFuncTopOfEdge)
-         call mpas_pool_get_array(diagnosticsPool, 'GMStreamFuncX', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'GMStreamFuncX', &
                    GMStreamFuncX)
-         call mpas_pool_get_array(diagnosticsPool, 'GMStreamFuncY', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'GMStreamFuncY', &
                    GMStreamFuncY)
-         call mpas_pool_get_array(diagnosticsPool, 'GMStreamFuncZ', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'GMStreamFuncZ', &
                    GMStreamFuncZ)
-         call mpas_pool_get_array(diagnosticsPool, 'GMStreamFuncZonal', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'GMStreamFuncZonal', &
                    GMStreamFuncZonal)
-         call mpas_pool_get_array(diagnosticsPool, 'GMStreamFuncMeridional', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'GMStreamFuncMeridional', &
                    GMStreamFuncMeridional)
-         call mpas_pool_get_array(diagnosticsPool, 'mleVelocityZonal', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'mleVelocityZonal', &
                    mleVelocityZonal)
-         call mpas_pool_get_array(diagnosticsPool, 'mleVelocityMeridional', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'mleVelocityMeridional', &
                    mleVelocityMeridional)
-         call mpas_pool_get_array(diagnosticsPool, 'eddyVelocityX', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'eddyVelocityX', &
                    eddyVelocityX)
-         call mpas_pool_get_array(diagnosticsPool, 'eddyVelocityY', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'eddyVelocityY', &
                    eddyVelocityY)
-         call mpas_pool_get_array(diagnosticsPool, 'eddyVelocityZ', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'eddyVelocityZ', &
                    eddyVelocityZ)
-         call mpas_pool_get_array(diagnosticsPool, 'GMBolusVelocityZonal', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'GMBolusVelocityZonal', &
                    GMBolusVelocityZonal)
-         call mpas_pool_get_array(diagnosticsPool, 'GMBolusVelocityMeridional', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'GMBolusVelocityMeridional', &
                    GMBolusVelocityMeridional)
-         call mpas_pool_get_array(diagnosticsPool, 'normalGMBolusVelocity', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'normalGMBolusVelocity', &
                    normalGMBolusVelocity)
-         call mpas_pool_get_array(diagnosticsPool, 'normalMLEvelocity', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'normalMLEvelocity', &
                    normalMLEvelocity)
-         call mpas_pool_get_array(diagnosticsPool, 'vertGMBolusVelocityTop', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'vertGMBolusVelocityTop', &
                    vertGMBolusVelocityTop)
-         call mpas_pool_get_array(diagnosticsPool, 'vertMLEBolusVelocityTop', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'vertMLEBolusVelocityTop', &
                    vertMLEBolusVelocityTop)
 
-         call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdgeFlux', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'layerThicknessEdgeFlux', &
                    layerThickEdgeFlux)
-         call mpas_pool_get_array(diagnosticsPool, 'layerThicknessEdgeMean', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'layerThicknessEdgeMean', &
                    layerThickEdgeMean)
 
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'normalizedRelativeVorticityEdge', &
                    normRelVortEdge)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'normalizedPlanetaryVorticityEdge', &
                    normPlanetVortEdge)
-         call mpas_pool_get_array(diagnosticsPool, 'relativeVorticity', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'relativeVorticity', &
                    relativeVorticity)
-         call mpas_pool_get_array(diagnosticsPool, 'relativeVorticityCell', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'relativeVorticityCell', &
                    relativeVorticityCell)
 
-         call mpas_pool_get_array(diagnosticsPool, 'surfaceVelocity', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'surfaceVelocity', &
                    surfaceVelocity)
 
-         call mpas_pool_get_array(diagnosticsPool, 'vertVelocityTop', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'vertVelocityTop', &
                    vertVelocityTop)
-         call mpas_pool_get_array(diagnosticsPool, 'vertNonLocalFlux', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'vertNonLocalFlux', &
                    vertNonLocalFlux)
-         call mpas_pool_get_array(diagnosticsPool, 'vertViscTopOfEdge', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'vertViscTopOfEdge', &
                    vertViscTopOfEdge)
-         call mpas_pool_get_array(diagnosticsPool, 'vertViscTopOfCell', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'vertViscTopOfCell', &
                    vertViscTopOfCell)
-         call mpas_pool_get_array(diagnosticsPool, 'vertDiffTopOfCell', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'vertDiffTopOfCell', &
                    vertDiffTopOfCell)
-         call mpas_pool_get_array(diagnosticsPool, 'vertAleTransportTop', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'vertAleTransportTop', &
                    vertAleTransportTop)
-         call mpas_pool_get_array(diagnosticsPool, 'vertTransportVelocityTop', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'vertTransportVelocityTop', &
                    vertTransportVelocityTop)
 
-         call mpas_pool_get_array(diagnosticsPool, 'barotropicForcing', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'barotropicForcing', &
                    barotropicForcing)
-         call mpas_pool_get_array(diagnosticsPool, 'kineticEnergyCell', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'kineticEnergyCell', &
                    kineticEnergyCell)
 
-         call mpas_pool_get_array(diagnosticsPool, 'transportVelocityX', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'transportVelocityX', &
                    transportVelocityX)
-         call mpas_pool_get_array(diagnosticsPool, 'transportVelocityY', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'transportVelocityY', &
                    transportVelocityY)
-         call mpas_pool_get_array(diagnosticsPool, 'transportVelocityZ', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'transportVelocityZ', &
                    transportVelocityZ)
-         call mpas_pool_get_array(diagnosticsPool, 'transportVelocityZonal', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'transportVelocityZonal', &
                    transportVelocityZonal)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'transportVelocityMeridional', &
                    transportVelocityMeridional)
 
-         call mpas_pool_get_array(diagnosticsPool, 'tangentialVelocity', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'tangentialVelocity', &
                    tangentialVelocity)
-         call mpas_pool_get_array(diagnosticsPool, 'montgomeryPotential', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'montgomeryPotential', &
                    montgomeryPotential)
-         call mpas_pool_get_array(diagnosticsPool, 'BruntVaisalaFreqTop', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'BruntVaisalaFreqTop', &
                    BruntVaisalaFreqTop)
 
-         call mpas_pool_get_array(diagnosticsPool, 'bulkRichardsonNumber', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'bulkRichardsonNumber', &
                    bulkRichardsonNumber)
-         call mpas_pool_get_array(diagnosticsPool, 'bulkRichardsonNumberBuoy',&
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'bulkRichardsonNumberBuoy',&
                    bulkRichardsonNumberBuoy)
-         call mpas_pool_get_array(diagnosticsPool, 'bulkRichardsonNumberShear',&
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'bulkRichardsonNumberShear',&
                    bulkRichardsonNumberShear)
 
          ! set pointers for fields related forcing at ocean surface
-         call mpas_pool_get_array(diagnosticsPool, 'surfaceBuoyancyForcing', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'surfaceBuoyancyForcing', &
                    surfaceBuoyancyForcing)
-         call mpas_pool_get_array(diagnosticsPool, 'surfaceFrictionVelocity', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'surfaceFrictionVelocity', &
                    surfaceFrictionVelocity)
 
-         call mpas_pool_get_array(diagnosticsPool, 'barotropicThicknessFlux', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'barotropicThicknessFlux', &
                    barotropicThicknessFlux)
 
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'normalTransportVelocity', &
                    normalTransportVelocity)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'normalVelocitySurfaceLayer', &
                    normalVelocitySurfaceLayer)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'penetrativeTemperatureFluxOBL', &
                    penetrativeTemperatureFluxOBL)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'normalizedRelativeVorticityCell', &
                    normalizedRelativeVorticityCell)
 
-         call mpas_pool_get_array(diagnosticsPool, 'tracersSurfaceLayerValue', &
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'tracersSurfaceLayerValue', &
                    tracersSurfaceLayerValue)
 
          ! Set pointer for index variables
@@ -563,10 +563,10 @@ contains
          call mpas_pool_get_dimension(diagnosticsPool, &
                   'index_SSHGradientMeridional', &
                    indexSSHGradientMeridionalPtr)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'indexSurfaceLayerDepth', &
                    indexSurfaceLayerDepth)
-         call mpas_pool_get_array(diagnosticsPool, &
+         call mpas_pool_get_array_gpu(diagnosticsPool, &
                   'indexBoundaryLayerDepth', &
                    indexBoundaryLayerDepth)
          call mpas_pool_get_dimension(diagnosticsPool, &
@@ -577,310 +577,99 @@ contains
          index_vertNonLocalFluxTemp = index_vertNonLocalFluxTempPtr
          indexSSHGradientMeridional = indexSSHGradientMeridionalPtr
          indexSSHGradientZonal = indexSSHGradientZonalPtr
+
       end if
 
-      call mpas_pool_get_array(diagnosticsPool, &
+      call mpas_pool_get_array_gpu(diagnosticsPool, &
                "daysSinceStartOfSim", &
                 daysSinceStartOfSim)
-      call mpas_pool_get_array(diagnosticsPool, 'Time', Time)
-      call mpas_pool_get_array(diagnosticsPool, 'Time_bnds', Time_bnds)
-      call mpas_pool_get_array(diagnosticsPool, 'xtime', xtime)
-      call mpas_pool_get_array(diagnosticsPool, 'simulationStartTime', &
+      call mpas_pool_get_array_gpu(diagnosticsPool, 'Time', Time)
+      call mpas_pool_get_array_gpu(diagnosticsPool, 'Time_bnds', Time_bnds)
+      call mpas_pool_get_array_gpu(diagnosticsPool, 'xtime', xtime)
+      call mpas_pool_get_array_gpu(diagnosticsPool, 'simulationStartTime', &
                 simulationStartTime)
 
-      call mpas_pool_get_array(diagnosticsPool, 'zMid', zMid)
-      call mpas_pool_get_array(diagnosticsPool, 'zTop', zTop)
-      call mpas_pool_get_array(diagnosticsPool, 'density', density)
-      call mpas_pool_get_array(diagnosticsPool, 'pressure', pressure)
-      call mpas_pool_get_array(diagnosticsPool, 'displacedDensity', &
+      call mpas_pool_get_array_gpu(diagnosticsPool, 'zMid', zMid)
+      call mpas_pool_get_array_gpu(diagnosticsPool, 'zTop', zTop)
+      call mpas_pool_get_array_gpu(diagnosticsPool, 'density', density)
+      call mpas_pool_get_array_gpu(diagnosticsPool, 'pressure', pressure)
+      call mpas_pool_get_array_gpu(diagnosticsPool, 'displacedDensity', &
                 displacedDensity)
-      call mpas_pool_get_array(diagnosticsPool, 'potentialDensity', &
+      call mpas_pool_get_array_gpu(diagnosticsPool, 'potentialDensity', &
                 potentialDensity)
-      call mpas_pool_get_array(diagnosticsPool, &
+      call mpas_pool_get_array_gpu(diagnosticsPool, &
                'inSituThermalExpansionCoeff', &
                 thermExpCoeff)
-      call mpas_pool_get_array(diagnosticsPool, &
+      call mpas_pool_get_array_gpu(diagnosticsPool, &
                'inSituSalineContractionCoeff', &
                 salineContractCoeff)
-      call mpas_pool_get_array(diagnosticsPool, &
+      call mpas_pool_get_array_gpu(diagnosticsPool, &
                'pressureAdjustedSSH', &
                 pressureAdjustedSSH)
-      call mpas_pool_get_array(diagnosticsPool, &
+      call mpas_pool_get_array_gpu(diagnosticsPool, &
                'tracersSurfaceValue', &
                 tracersSurfaceValue)
-      call mpas_pool_get_array(diagnosticsPool, &
+      call mpas_pool_get_array_gpu(diagnosticsPool, &
                'surfaceFluxAttenuationCoefficient', &
                 sfcFlxAttCoeff)
-      call mpas_pool_get_array(diagnosticsPool, &
+      call mpas_pool_get_array_gpu(diagnosticsPool, &
                'surfaceFluxAttenuationCoefficientRunoff', &
                 surfaceFluxAttenuationCoefficientRunoff)
-      call mpas_pool_get_array(diagnosticsPool, &
+      call mpas_pool_get_array_gpu(diagnosticsPool, &
                'boundaryLayerDepth', &
                 boundaryLayerDepth)
-      call mpas_pool_get_array(diagnosticsPool, &
+      call mpas_pool_get_array_gpu(diagnosticsPool, &
                'boundaryLayerDepthSmooth', &
                 boundaryLayerDepthSmooth)
-      call mpas_pool_get_array(diagnosticsPool, 'barotropicCoriolisTerm', &
+      call mpas_pool_get_array_gpu(diagnosticsPool, 'barotropicCoriolisTerm', &
                 barotropicCoriolisTerm)
-      call mpas_pool_get_array(diagnosticsPool, 'betaEdge', betaEdge)
-      call mpas_pool_get_array(diagnosticsPool, &
+      call mpas_pool_get_array_gpu(diagnosticsPool, 'betaEdge', betaEdge)
+      call mpas_pool_get_array_gpu(diagnosticsPool, &
                'bottomLayerShortwaveTemperatureFlux', &
                 bottomLayerShortwaveTemperatureFlux)
       call mpas_pool_get_field(diagnosticsPool, 'rx1InitSmoothingMask', &
                 smoothingMaskField, 1)
       call mpas_pool_get_field(diagnosticsPool, 'verticalStretch', &
                 verticalStretchField, 1)
-      call mpas_pool_get_array(diagnosticsPool, &
+      call mpas_pool_get_array_gpu(diagnosticsPool, &
                'modifyLandIcePressureMask', &
                 modifyLandIcePressureMask)
-      call mpas_pool_get_array(diagnosticsPool, 'indMLD', indMLD)
-      call mpas_pool_get_array(diagnosticsPool, 'dThreshMLD', dThreshMLD)
-      call mpas_pool_get_array(diagnosticsPool, 'surfacePressure', &
+      call mpas_pool_get_array_gpu(diagnosticsPool, 'indMLD', indMLD)
+      call mpas_pool_get_array_gpu(diagnosticsPool, 'dThreshMLD', dThreshMLD)
+      call mpas_pool_get_array_gpu(diagnosticsPool, 'surfacePressure', &
                 surfacePressure)
 
-      call mpas_pool_get_array(diagnosticsPool, 'nhPressureCorrection', nhPressureCorrection)
+      call mpas_pool_get_array_gpu(diagnosticsPool, 'nhPressureCorrection', nhPressureCorrection)
 
       ! Semi-implicit Array Pointer retrievals
       if (trim(config_time_integrator) == 'split_implicit') then
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_r0', SIvec_r0)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_r1', SIvec_r1)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_v0', SIvec_v0)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_w0', SIvec_w0)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_w1', SIvec_w1)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_t0', SIvec_t0)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_q0', SIvec_q0)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_s0', SIvec_s0)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_s1', SIvec_s1)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_t0', SIvec_t0)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_t1', SIvec_t1)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_y0', SIvec_y0)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_z0', SIvec_z0)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_z1', SIvec_z1)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_r00', SIvec_r00)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_rh0', SIvec_rh0)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_rh1', SIvec_rh1)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_wh0', SIvec_wh0)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_wh1', SIvec_wh1)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_ph0', SIvec_ph0)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_ph1', SIvec_ph1)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_qh0', SIvec_qh0)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_sh0', SIvec_sh0)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_sh1', SIvec_sh1)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_zh0', SIvec_zh0)
-         call mpas_pool_get_array(diagnosticsPool, 'SIvec_zh1', SIvec_zh1)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_r0', SIvec_r0)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_r1', SIvec_r1)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_v0', SIvec_v0)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_w0', SIvec_w0)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_w1', SIvec_w1)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_t0', SIvec_t0)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_q0', SIvec_q0)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_s0', SIvec_s0)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_s1', SIvec_s1)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_t0', SIvec_t0)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_t1', SIvec_t1)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_y0', SIvec_y0)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_z0', SIvec_z0)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_z1', SIvec_z1)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_r00', SIvec_r00)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_rh0', SIvec_rh0)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_rh1', SIvec_rh1)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_wh0', SIvec_wh0)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_wh1', SIvec_wh1)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_ph0', SIvec_ph0)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_ph1', SIvec_ph1)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_qh0', SIvec_qh0)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_sh0', SIvec_sh0)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_sh1', SIvec_sh1)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_zh0', SIvec_zh0)
+         call mpas_pool_get_array_gpu(diagnosticsPool, 'SIvec_zh1', SIvec_zh1)
       end if
-
-      ! Copy diagnostic variables to accelerator
-      if ( trim(config_land_ice_flux_mode) /= 'off' ) then
-         !$acc enter data create(                                 &
-         !$acc                   topDrag,                         &
-         !$acc                   topDragMag,                      &
-         !$acc                   landIceBoundaryLayerTracers,     &
-         !$acc                   landIceTracerTransferVelocities, &
-         !$acc                   landIceFrictionVelocity)
-      end if
-      if (config_use_topographic_wave_drag) then
-         !$acc enter data create(topographic_wave_drag)
-      end if
-      if (config_use_self_attraction_loading) then
-         !$acc enter data copyin(ssh_sal)
-      end if
-      if ( trim(config_ocean_run_mode) == 'init' ) then
-         !$acc enter data create(                          &
-         !$acc                   rx1Edge,                  &
-         !$acc                   rx1Cell,                  &
-         !$acc                   rx1MaxEdge,               &
-         !$acc                   smoothingMask,            &
-         !$acc                   verticalStretch,          &
-         !$acc                   globalVerticalStretchMax, &
-         !$acc                   globalVerticalStretchMin  &
-         !$acc                   )
-      end if
-      if ( trim(config_ocean_run_mode) == 'init' .or. &
-                config_AM_debugDiagnostics_enable ) then
-         !$acc enter data create(                          &
-         !$acc                   rx1MaxCell,               &
-         !$acc                   globalRx1Max)
-      end if
-      if ( trim(config_ocean_run_mode) == 'forward' .or. &
-           trim(config_ocean_run_mode) == 'analysis' ) then
-         !$acc enter data create(                                 &
-         !$acc                   k33,                             &
-         !$acc                   gradSSH,                         &
-         !$acc                   gradSSHX,                        &
-         !$acc                   gradSSHY,                        &
-         !$acc                   gradSSHZ,                        &
-         !$acc                   viscosity,                       &
-         !$acc                   velocityX,                       &
-         !$acc                   velocityY,                       &
-         !$acc                   velocityZ,                       &
-         !$acc                   divergence,                      &
-         !$acc                   RiTopOfCell,                     &
-         !$acc                   RiTopOfEdge,                     &
-         !$acc                   SSHGradient,                     &
-         !$acc                   circulation,                     &
-         !$acc                   slopeTriadUp,                    &
-         !$acc                   gradSSHZonal,                    &
-         !$acc                   cGMphaseSpeed,                   &
-         !$acc                   velocityZonal,                   &
-         !$acc                   GMStreamFuncX,                   &
-         !$acc                   GMStreamFuncY,                   &
-         !$acc                   GMStreamFuncZ,                   &
-         !$acc                   layerThickEdgeFlux,              &
-         !$acc                   layerThickEdgeMean,              &
-         !$acc                   slopeTriadDown,                  &
-         !$acc                   normRelVortEdge,                 &
-         !$acc                   surfaceVelocity,                 &
-         !$acc                   vertVelocityTop,                 &
-         !$acc                   eddyVelocityX,                   &
-         !$acc                   eddyVelocityY,                   &
-         !$acc                   eddyVelocityZ,                   &
-         !$acc                   vertNonLocalFlux,                &
-         !$acc                   vertViscTopOfEdge,               &
-         !$acc                   gradSSHMeridional,               &
-         !$acc                   barotropicForcing,               &
-         !$acc                   vertViscTopOfCell,               &
-         !$acc                   vertDiffTopOfCell,               &
-         !$acc                   GMStreamFuncZonal,               &
-         !$acc                   relativeVorticity,               &
-         !$acc                   kineticEnergyCell,               &
-         !$acc                   normPlanetVortEdge,              &
-         !$acc                   velocityMeridional,              &
-         !$acc                   transportVelocityX,              &
-         !$acc                   transportVelocityY,              &
-         !$acc                   transportVelocityZ,              &
-         !$acc                   tangentialVelocity,              &
-         !$acc                   montgomeryPotential,             &
-         !$acc                   BruntVaisalaFreqTop,             &
-         !$acc                   vertAleTransportTop,             &
-         !$acc                   GMBolusVelocityZonal,            &
-         !$acc                   mleVelocityZonal,                &
-         !$acc                   bulkRichardsonNumber,            &
-         !$acc                   gmStreamFuncTopOfEdge,           &
-         !$acc                   relativeVorticityCell,           &
-         !$acc                   normalGMBolusVelocity,           &
-         !$acc                   normalMLEvelocity,               &
-         !$acc                   vertGMBolusVelocityTop,          &
-         !$acc                   vertMLEBolusVelocityTop,         &
-         !$acc                   transportVelocityZonal,          &
-         !$acc                   GMStreamFuncMeridional,          &
-         !$acc                   indexSurfaceLayerDepth,          &
-         !$acc                   surfaceBuoyancyForcing,          &
-         !$acc                   surfaceFrictionVelocity,         &
-         !$acc                   indexBoundaryLayerDepth,         &
-         !$acc                   barotropicThicknessFlux,         &
-         !$acc                   normalTransportVelocity,         &
-         !$acc                   vertTransportVelocityTop,        &
-         !$acc                   bulkRichardsonNumberBuoy,        &
-         !$acc                   tracersSurfaceLayerValue,        &
-         !$acc                   GMBolusVelocityMeridional,       &
-         !$acc                   mleVelocityMeridional,           &
-         !$acc                   bulkRichardsonNumberShear,       &
-         !$acc                   normalVelocitySurfaceLayer,      &
-         !$acc                   transportVelocityMeridional,     &
-         !$acc                   penetrativeTemperatureFluxOBL,   &
-         !$acc                   indexSurfaceVelocityMeridional,  &
-         !$acc                   normalizedRelativeVorticityCell, &
-         !$acc                   nhPressureCorrection             &
-         !$acc                   ) 
-      end if
-      if ( trim(config_ocean_run_mode) == 'forward' ) then
-         !$acc enter data create( &
-         !$acc                   wettingVelocity              &
-         !$acc                   )
-      end if
-      if (config_use_GM.or.config_use_Redi) then
-         !$acc enter data create(                   &
-         !$acc                   RediKappa,         &
-         !$acc                   gmBolusKappa,      &
-         !$acc                   gmKappaScaling,    &
-         !$acc                   RediKappaScaling,  &
-         !$acc                   rediLimiterCount,  &
-         !$acc                   RediKappaSfcTaper, &
-         !$acc                   RediHorizontalTaper,  &
-         !$acc                   gmHorizontalTaper,  &
-         !$acc                   RossbyRadius  &
-         !$acc                   )
-      end if
-      if (config_use_GM.or.config_submesoscale_enable) then
-         !$acc enter data create(gradDensityEddy)
-      end if
-      if ( config_compute_active_tracer_budgets ) then
-         !$acc enter data create(                                         &
-         !$acc                   activeTracerHorMixTendency,              &
-         !$acc                   activeTracerVertMixTendency,             &
-         !$acc                   temperatureShortWaveTendency,            &
-         !$acc                   activeTracerNonLocalTendency,            &
-         !$acc                   activeTracerSurfaceFluxTendency,         &
-         !$acc                   activeTracerVerticalAdvectionTopFlux,    &
-         !$acc                   activeTracerVerticalAdvectionTendency,   &
-         !$acc                   activeTracerHorizontalAdvectionTendency, &
-         !$acc                   activeTracerHorizontalAdvectionEdgeFlux  &
-         !$acc                   )
-      end if
-      if ( config_use_activeTracers_surface_restoring ) then
-         !$acc enter data create(                                  &
-         !$acc                   salinitySurfaceRestoringTendency  &
-         !$acc                   )
-      end if
-      if ( trim(config_time_integrator) == 'split_implicit' ) then
-         !$acc enter data create(                       &
-         !$acc                   SIvec_r0,              &
-         !$acc                   SIvec_r00,             &
-         !$acc                   SIvec_r1,              &
-         !$acc                   SIvec_rh0,             &
-         !$acc                   SIvec_rh1,             &
-         !$acc                   SIvec_ph0,             &
-         !$acc                   SIvec_ph1,             &
-         !$acc                   SIvec_v0,              &
-         !$acc                   SIvec_v0,              &
-         !$acc                   SIvec_s0,              &
-         !$acc                   SIvec_s1,              &
-         !$acc                   SIvec_sh0,             &
-         !$acc                   SIvec_sh1,             &
-         !$acc                   SIvec_t0,              &
-         !$acc                   SIvec_t1,              &
-         !$acc                   SIvec_q0,              &
-         !$acc                   SIvec_q1,              &
-         !$acc                   SIvec_qh0,             &
-         !$acc                   SIvec_w0,              &
-         !$acc                   SIvec_w1,              &
-         !$acc                   SIvec_wh0,             &
-         !$acc                   SIvec_wh1,             &
-         !$acc                   SIvec_y0,              &
-         !$acc                   SIvec_z0,              &
-         !$acc                   SIvec_z1,              &
-         !$acc                   SIvec_zh0,             &
-         !$acc                   SIvec_zh1,             &
-         !$acc                   barotropicCoriolisTerm &
-         !$acc                   )
-      end if
-
-      !$acc enter data create(                                         &
-      !$acc                   zMid,                                    &
-      !$acc                   zTop,                                    &
-      !$acc                   xtime,                                   &
-      !$acc                   indMLD,                                  &
-      !$acc                   dThreshMLD,                              &
-      !$acc                   density,                                 &
-      !$acc                   betaEdge,                                &
-      !$acc                   pressure,                                &
-      !$acc                   thermExpCoeff,                           &
-      !$acc                   sfcFlxAttCoeff,                          &
-      !$acc                   surfacePressure,                         &
-      !$acc                   potentialDensity,                        &
-      !$acc                   displacedDensity,                        &
-      !$acc                   boundaryLayerDepth,                      &
-      !$acc                   salineContractCoeff,                     &
-      !$acc                   pressureAdjustedSSH,                     &
-      !$acc                   tracersSurfaceValue,                     &
-      !$acc                   daysSinceStartOfSim,                     &
-      !$acc                   Time,                                    &
-      !$acc                   Time_bnds,                               &
-      !$acc                   simulationStartTime,                     &
-      !$acc                   boundaryLayerDepthSmooth,                &
-      !$acc                   surfaceFluxAttenuationCoefficientRunoff  &
-      !$acc                   )
 
     end subroutine ocn_diagnostics_variables_init!}}}
 
@@ -912,218 +701,6 @@ contains
       !***
 
       err = 0
-
-      ! Remove data from the device
-      if ( trim(config_land_ice_flux_mode) /= 'off' ) then
-         !$acc exit data delete(                                  &
-         !$acc                   topDrag,                         &
-         !$acc                   topDragMag,                      &
-         !$acc                   landIceBoundaryLayerTracers,     &
-         !$acc                   landIceTracerTransferVelocities, &
-         !$acc                   landIceFrictionVelocity)
-      end if
-      if (config_use_topographic_wave_drag) then
-         !$acc exit data delete(topographic_wave_drag)
-      end if
-      if (config_use_self_attraction_loading) then
-         !$acc exit data delete(ssh_sal)
-      end if
-      if ( trim(config_ocean_run_mode) == 'init' ) then
-         !$acc exit data delete(                           &
-         !$acc                   rx1Edge,                  &
-         !$acc                   rx1Cell,                  &
-         !$acc                   rx1MaxEdge,               &
-         !$acc                   smoothingMask,            &
-         !$acc                   verticalStretch,          &
-         !$acc                   globalVerticalStretchMax, &
-         !$acc                   globalVerticalStretchMin  &
-         !$acc                   )
-      end if
-      if ( trim(config_ocean_run_mode) == 'init' .or. &
-                config_AM_debugDiagnostics_enable ) then
-         !$acc exit data delete(                           &
-         !$acc                   rx1MaxCell,               &
-         !$acc                   globalRx1Max)
-      end if
-      if ( trim(config_ocean_run_mode) == 'forward' .or. &
-           trim(config_ocean_run_mode) == 'analysis' ) then
-         !$acc exit data delete(                                  &
-         !$acc                   k33,                             &
-         !$acc                   gradSSH,                         &
-         !$acc                   gradSSHX,                        &
-         !$acc                   gradSSHY,                        &
-         !$acc                   gradSSHZ,                        &
-         !$acc                   viscosity,                       &
-         !$acc                   velocityX,                       &
-         !$acc                   velocityY,                       &
-         !$acc                   velocityZ,                       &
-         !$acc                   divergence,                      &
-         !$acc                   RiTopOfCell,                     &
-         !$acc                   RiTopOfEdge,                     &
-         !$acc                   SSHGradient,                     &
-         !$acc                   circulation,                     &
-         !$acc                   slopeTriadUp,                    &
-         !$acc                   gradSSHZonal,                    &
-         !$acc                   cGMphaseSpeed,                   &
-         !$acc                   velocityZonal,                   &
-         !$acc                   GMStreamFuncX,                   &
-         !$acc                   GMStreamFuncY,                   &
-         !$acc                   GMStreamFuncZ,                   &
-         !$acc                   layerThickEdgeFlux,              &
-         !$acc                   layerThickEdgeMean,              &
-         !$acc                   slopeTriadDown,                  &
-         !$acc                   normRelVortEdge,                 &
-         !$acc                   surfaceVelocity,                 &
-         !$acc                   vertVelocityTop,                 &
-         !$acc                   eddyVelocityX,                   &
-         !$acc                   eddyVelocityY,                   &
-         !$acc                   eddyVelocityZ,                   &
-         !$acc                   vertNonLocalFlux,                &
-         !$acc                   vertViscTopOfEdge,               &
-         !$acc                   gradSSHMeridional,               &
-         !$acc                   barotropicForcing,               &
-         !$acc                   vertViscTopOfCell,               &
-         !$acc                   vertDiffTopOfCell,               &
-         !$acc                   GMStreamFuncZonal,               &
-         !$acc                   relativeVorticity,               &
-         !$acc                   kineticEnergyCell,               &
-         !$acc                   normPlanetVortEdge,              &
-         !$acc                   velocityMeridional,              &
-         !$acc                   transportVelocityX,              &
-         !$acc                   transportVelocityY,              &
-         !$acc                   transportVelocityZ,              &
-         !$acc                   tangentialVelocity,              &
-         !$acc                   montgomeryPotential,             &
-         !$acc                   BruntVaisalaFreqTop,             &
-         !$acc                   vertAleTransportTop,             &
-         !$acc                   GMBolusVelocityZonal,            &
-         !$acc                   mleVelocityZonal,                &
-         !$acc                   bulkRichardsonNumber,            &
-         !$acc                   gmStreamFuncTopOfEdge,           &
-         !$acc                   relativeVorticityCell,           &
-         !$acc                   normalGMBolusVelocity,           &
-         !$acc                   normalMLEvelocity,               &
-         !$acc                   vertGMBolusVelocityTop,          &
-         !$acc                   vertMLEBolusVelocityTop,         &
-         !$acc                   transportVelocityZonal,          &
-         !$acc                   GMStreamFuncMeridional,          &
-         !$acc                   indexSurfaceLayerDepth,          &
-         !$acc                   surfaceBuoyancyForcing,          &
-         !$acc                   surfaceFrictionVelocity,         &
-         !$acc                   indexBoundaryLayerDepth,         &
-         !$acc                   barotropicThicknessFlux,         &
-         !$acc                   normalTransportVelocity,         &
-         !$acc                   vertTransportVelocityTop,        &
-         !$acc                   bulkRichardsonNumberBuoy,        &
-         !$acc                   tracersSurfaceLayerValue,        &
-         !$acc                   mleVelocityMeridional,           &
-         !$acc                   GMBolusVelocityMeridional,       &
-         !$acc                   bulkRichardsonNumberShear,       &
-         !$acc                   normalVelocitySurfaceLayer,      &
-         !$acc                   transportVelocityMeridional,     &
-         !$acc                   penetrativeTemperatureFluxOBL,   &
-         !$acc                   indexSurfaceVelocityMeridional,  &
-         !$acc                   normalizedRelativeVorticityCell, &
-         !$acc                   nhPressureCorrection             &
-         !$acc                   )
-      end if
-      if ( trim(config_ocean_run_mode) == 'forward' ) then
-         !$acc exit data delete(                              &
-         !$acc                   wettingVelocity              &
-         !$acc                   )
-      end if
-      if (config_use_GM.or.config_use_Redi) then
-         !$acc exit data delete(                    &
-         !$acc                   RediKappa,         &
-         !$acc                   gmBolusKappa,      &
-         !$acc                   gmKappaScaling,    &
-         !$acc                   RediKappaScaling,  &
-         !$acc                   rediLimiterCount,  &
-         !$acc                   RediKappaSfcTaper, &
-         !$acc                   RediHorizontalTaper,  &
-         !$acc                   gmHorizontalTaper,  &
-         !$acc                   RossbyRadius  &
-         !$acc                   )
-      end if
-      if (config_use_GM.or.config_submesoscale_enable) then
-         !$acc exit data delete(gradDensityEddy)
-      end if
-      if ( config_compute_active_tracer_budgets ) then
-         !$acc exit data delete(                                          &
-         !$acc                   activeTracerHorMixTendency,              &
-         !$acc                   activeTracerVertMixTendency,             &
-         !$acc                   temperatureShortWaveTendency,            &
-         !$acc                   activeTracerNonLocalTendency,            &
-         !$acc                   activeTracerSurfaceFluxTendency,         &
-         !$acc                   activeTracerVerticalAdvectionTopFlux,    &
-         !$acc                   activeTracerVerticalAdvectionTendency,   &
-         !$acc                   activeTracerHorizontalAdvectionTendency, &
-         !$acc                   activeTracerHorizontalAdvectionEdgeFlux  &
-         !$acc                   )
-      end if
-      if ( config_use_activeTracers_surface_restoring ) then
-         !$acc exit data delete(                                   &
-         !$acc                   salinitySurfaceRestoringTendency  &
-         !$acc                   )
-      end if
-      if ( trim(config_time_integrator) == 'split_implicit' ) then
-         !$acc exit data delete(                        &
-         !$acc                   SIvec_r0,              &
-         !$acc                   SIvec_r00,             &
-         !$acc                   SIvec_r1,              &
-         !$acc                   SIvec_rh0,             &
-         !$acc                   SIvec_rh1,             &
-         !$acc                   SIvec_ph0,             &
-         !$acc                   SIvec_ph1,             &
-         !$acc                   SIvec_v0,              &
-         !$acc                   SIvec_v0,              &
-         !$acc                   SIvec_s0,              &
-         !$acc                   SIvec_s1,              &
-         !$acc                   SIvec_sh0,             &
-         !$acc                   SIvec_sh1,             &
-         !$acc                   SIvec_t0,              &
-         !$acc                   SIvec_t1,              &
-         !$acc                   SIvec_q0,              &
-         !$acc                   SIvec_q1,              &
-         !$acc                   SIvec_qh0,             &
-         !$acc                   SIvec_w0,              &
-         !$acc                   SIvec_w1,              &
-         !$acc                   SIvec_wh0,             &
-         !$acc                   SIvec_wh1,             &
-         !$acc                   SIvec_y0,              &
-         !$acc                   SIvec_z0,              &
-         !$acc                   SIvec_z1,              &
-         !$acc                   SIvec_zh0,             &
-         !$acc                   SIvec_zh1,             &
-         !$acc                   barotropicCoriolisTerm &
-         !$acc                   )
-      end if
-
-      !$acc exit data delete(                                          &
-      !$acc                   zMid,                                    &
-      !$acc                   zTop,                                    &
-      !$acc                   xtime,                                   &
-      !$acc                   indMLD,                                  &
-      !$acc                   dThreshMLD,                              &
-      !$acc                   density,                                 &
-      !$acc                   betaEdge,                                &
-      !$acc                   pressure,                                &
-      !$acc                   thermExpCoeff,                           &
-      !$acc                   sfcFlxAttCoeff,                          &
-      !$acc                   surfacePressure,                         &
-      !$acc                   potentialDensity,                        &
-      !$acc                   displacedDensity,                        &
-      !$acc                   boundaryLayerDepth,                      &
-      !$acc                   salineContractCoeff,                     &
-      !$acc                   pressureAdjustedSSH,                     &
-      !$acc                   tracersSurfaceValue,                     &
-      !$acc                   daysSinceStartOfSim,                     &
-      !$acc                   Time,                                    &
-      !$acc                   Time_bnds,                               &
-      !$acc                   simulationStartTime,                     &
-      !$acc                   boundaryLayerDepthSmooth,                &
-      !$acc                   surfaceFluxAttenuationCoefficientRunoff  &
-      !$acc                   )
 
       ! Nullify pointers
       if ( trim(config_land_ice_flux_mode) /= 'off' ) then

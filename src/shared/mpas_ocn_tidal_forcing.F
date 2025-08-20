@@ -48,6 +48,7 @@ module ocn_tidal_forcing
 
    public :: ocn_tidal_forcing_build_array, &
              ocn_tidal_forcing_layer_thickness, &
+             ocn_tidal_forcing_layer_thickness_gpu, &
              ocn_tidal_forcing_init
 
    !--------------------------------------------------------------------
@@ -120,16 +121,8 @@ contains
       nCells = nCellsHalo( 1 )
 
       ! Build surface fluxes at cell centers
-#ifdef MPAS_OPENACC
-      !$acc enter data copyin(tidalLayerThicknessTendency)
-
-      !$acc parallel loop present(layerThicknessTend, maxLevelCell, minLevelCell, &
-      !$acc     tidalLayerThicknessTendency) &
-      !$acc     private(k)
-#else
       !$omp parallel
       !$omp do schedule(runtime) private(k)
-#endif
       do iCell = 1, nCells
         do k = minLevelCell(iCell), maxLevelCell(iCell)
           layerThicknessTend(k,iCell) = layerThicknessTend(k,iCell) + &
@@ -137,18 +130,76 @@ contains
 
         end do
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
-
-#ifdef MPAS_OPENACC
-      !$acc exit data delete(tidalLayerThicknessTendency)
-#endif
 
       call mpas_timer_stop("tidal thickness tendency")
 
    end subroutine ocn_tidal_forcing_layer_thickness !}}}
+
+   subroutine ocn_tidal_forcing_layer_thickness_gpu(forcingPool, layerThicknessTend, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(in) :: forcingPool !< Input: Forcing information
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+      real (kind=RKIND), intent(inout), dimension(:,:) :: layerThicknessTend
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: Error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iCell, k, nCells
+      real (kind=RKIND), dimension(:,:), pointer :: tidalLayerThicknessTendency
+
+      err = 0
+
+      if ( .not. tidalfluxOn ) return
+!NV!  !!! NOT EXECUTING !!!
+      write(*,*) "ocn_tidal_forcing_layer_thickness_gpu NOT EXECUTING"
+
+      call mpas_timer_start("tidal thickness tendency gpu")
+
+      call mpas_pool_get_array(forcingPool, 'tidalLayerThicknessTendency', &
+                                             tidalLayerThicknessTendency)
+
+      ! frazil fields are needed only over 0 and 1 halos
+      nCells = nCellsHalo( 1 )
+
+      ! Build surface fluxes at cell centers
+      !$omp parallel
+      !$omp do schedule(runtime) private(k)
+      do iCell = 1, nCells
+        do k = minLevelCell(iCell), maxLevelCell(iCell)
+          layerThicknessTend(k,iCell) = layerThicknessTend(k,iCell) + &
+                                        tidalLayerThicknessTendency(k,iCell)
+
+        end do
+      end do
+      !$omp end do
+      !$omp end parallel
+
+      call mpas_timer_stop("tidal thickness tendency gpu")
+
+   end subroutine ocn_tidal_forcing_layer_thickness_gpu !}}}
 
 
 !***********************************************************************
@@ -220,6 +271,7 @@ contains
       character (len=StrKIND), pointer :: xtime
 
       if ( .not. tidalfluxOn ) return
+      write(*,*) "ocn_tidal_forcing_build_array NOT EXECUTING"
 
       call mpas_pool_get_array(statePool, 'ssh', ssh, 1)
       call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, 1)

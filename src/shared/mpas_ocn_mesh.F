@@ -67,6 +67,7 @@ module ocn_mesh
       nCellsHalo, &! number of owned+halo(n) cells in local domain
       nEdgesHalo, &! number of owned+halo(n) edges in local domain
       nVerticesHalo      ! number of owned+halo(n) vertices in local domain
+!$acc declare create(nCellsHalo,nEdgesHalo,nVerticesHalo)
 
    integer, public, dimension(:), pointer :: &
       nEdgesOnEdge, &! number of edges connected to each edge point
@@ -157,6 +158,8 @@ module ocn_mesh
    ! Derived mesh values needed
    real(kind=RKIND), public, dimension(:, :), allocatable :: &
       edgeAreaFractionOfCell
+!$acc declare create(invAreaCell,edgeMask,cellMask,vertexMask,boundaryEdge,boundaryCell,&
+!$acc                boundaryVertex,edgeSignOnCell,edgeSignOnVertex,edgeAreaFractionOfCell)
 
    !}}}
 
@@ -341,154 +344,154 @@ contains
       end do
 
       ! set pointers for a lot of connectivity info
-      call mpas_pool_get_array(meshPool, 'nEdgesOnEdge', &
+      call mpas_pool_get_array_gpu(meshPool, 'nEdgesOnEdge', &
                                nEdgesOnEdge)
-      call mpas_pool_get_array(meshPool, 'nEdgesOnCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'nEdgesOnCell', &
                                nEdgesOnCell)
-      call mpas_pool_get_array(meshPool, 'minLevelCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'minLevelCell', &
                                minLevelCell)
-      call mpas_pool_get_array(meshPool, 'minLevelEdgeTop', &
+      call mpas_pool_get_array_gpu(meshPool, 'minLevelEdgeTop', &
                                minLevelEdgeTop)
-      call mpas_pool_get_array(meshPool, 'minLevelEdgeBot', &
+      call mpas_pool_get_array_gpu(meshPool, 'minLevelEdgeBot', &
                                minLevelEdgeBot)
-      call mpas_pool_get_array(meshPool, 'minLevelVertexTop', &
+      call mpas_pool_get_array_gpu(meshPool, 'minLevelVertexTop', &
                                minLevelVertexTop)
-      call mpas_pool_get_array(meshPool, 'minLevelVertexBot', &
+      call mpas_pool_get_array_gpu(meshPool, 'minLevelVertexBot', &
                                minLevelVertexBot)
-      call mpas_pool_get_array(meshPool, 'maxLevelCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'maxLevelCell', &
                                maxLevelCell)
-      call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', &
+      call mpas_pool_get_array_gpu(meshPool, 'maxLevelEdgeTop', &
                                maxLevelEdgeTop)
-      call mpas_pool_get_array(meshPool, 'maxLevelEdgeBot', &
+      call mpas_pool_get_array_gpu(meshPool, 'maxLevelEdgeBot', &
                             maxLevelEdgeBot)
-      call mpas_pool_get_array(meshPool, 'maxLevelVertexTop', &
+      call mpas_pool_get_array_gpu(meshPool, 'maxLevelVertexTop', &
                                maxLevelVertexTop)
-      call mpas_pool_get_array(meshPool, 'maxLevelVertexBot', &
+      call mpas_pool_get_array_gpu(meshPool, 'maxLevelVertexBot', &
                                maxLevelVertexBot)
-      call mpas_pool_get_array(meshPool, 'indexToCellID', &
+      call mpas_pool_get_array_gpu(meshPool, 'indexToCellID', &
                                indexToCellID)
-      call mpas_pool_get_array(meshPool, 'indexToEdgeID', &
+      call mpas_pool_get_array_gpu(meshPool, 'indexToEdgeID', &
                                indexToEdgeID)
-      call mpas_pool_get_array(meshPool, 'indexToVertexID', &
+      call mpas_pool_get_array_gpu(meshPool, 'indexToVertexID', &
                                indexToVertexID)
-      call mpas_pool_get_array(meshPool, 'edgesOnEdge', &
+      call mpas_pool_get_array_gpu(meshPool, 'edgesOnEdge', &
                                edgesOnEdge)
-      call mpas_pool_get_array(meshPool, 'cellsOnEdge', &
+      call mpas_pool_get_array_gpu(meshPool, 'cellsOnEdge', &
                                cellsOnEdge)
-      call mpas_pool_get_array(meshPool, 'verticesOnEdge', &
+      call mpas_pool_get_array_gpu(meshPool, 'verticesOnEdge', &
                                verticesOnEdge)
-      call mpas_pool_get_array(meshPool, 'cellsOnCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'cellsOnCell', &
                                cellsOnCell)
-      call mpas_pool_get_array(meshPool, 'edgesOnCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'edgesOnCell', &
                                edgesOnCell)
-      call mpas_pool_get_array(meshPool, 'verticesOnCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'verticesOnCell', &
                                verticesOnCell)
-      call mpas_pool_get_array(meshPool, 'cellsOnVertex', &
+      call mpas_pool_get_array_gpu(meshPool, 'cellsOnVertex', &
                                cellsOnVertex)
-      call mpas_pool_get_array(meshPool, 'edgesOnVertex', &
+      call mpas_pool_get_array_gpu(meshPool, 'edgesOnVertex', &
                                edgesOnVertex)
-      call mpas_pool_get_array(meshPool, 'kiteIndexOnCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'kiteIndexOnCell', &
                                kiteIndexOnCell)
 
       ! now set a number of physics and numerical properties of mesh
-      call mpas_pool_get_array(meshPool, 'latCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'latCell', &
                                latCell)
-      call mpas_pool_get_array(meshPool, 'lonCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'lonCell', &
                                lonCell)
-      call mpas_pool_get_array(meshPool, 'xCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'xCell', &
                                xCell)
-      call mpas_pool_get_array(meshPool, 'yCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'yCell', &
                                yCell)
-      call mpas_pool_get_array(meshPool, 'zCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'zCell', &
                                zCell)
-      call mpas_pool_get_array(meshPool, 'latEdge', &
+      call mpas_pool_get_array_gpu(meshPool, 'latEdge', &
                                latEdge)
-      call mpas_pool_get_array(meshPool, 'lonEdge', &
+      call mpas_pool_get_array_gpu(meshPool, 'lonEdge', &
                                lonEdge)
-      call mpas_pool_get_array(meshPool, 'xEdge', &
+      call mpas_pool_get_array_gpu(meshPool, 'xEdge', &
                                xEdge)
-      call mpas_pool_get_array(meshPool, 'yEdge', &
+      call mpas_pool_get_array_gpu(meshPool, 'yEdge', &
                                yEdge)
-      call mpas_pool_get_array(meshPool, 'zEdge', &
+      call mpas_pool_get_array_gpu(meshPool, 'zEdge', &
                                zEdge)
-      call mpas_pool_get_array(meshPool, 'latVertex', &
+      call mpas_pool_get_array_gpu(meshPool, 'latVertex', &
                                latVertex)
-      call mpas_pool_get_array(meshPool, 'lonVertex', &
+      call mpas_pool_get_array_gpu(meshPool, 'lonVertex', &
                                lonVertex)
-      call mpas_pool_get_array(meshPool, 'xVertex', &
+      call mpas_pool_get_array_gpu(meshPool, 'xVertex', &
                                xVertex)
-      call mpas_pool_get_array(meshPool, 'yVertex', &
+      call mpas_pool_get_array_gpu(meshPool, 'yVertex', &
                                yVertex)
-      call mpas_pool_get_array(meshPool, 'zVertex', &
+      call mpas_pool_get_array_gpu(meshPool, 'zVertex', &
                                zVertex)
-      call mpas_pool_get_array(meshPool, 'fEdge', &
+      call mpas_pool_get_array_gpu(meshPool, 'fEdge', &
                                fEdge)
-      call mpas_pool_get_array(meshPool, 'fVertex', &
+      call mpas_pool_get_array_gpu(meshPool, 'fVertex', &
                                fVertex)
-      call mpas_pool_get_array(meshPool, 'fCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'fCell', &
                                fCell)
-      call mpas_pool_get_array(meshPool, 'dcEdge', &
+      call mpas_pool_get_array_gpu(meshPool, 'dcEdge', &
                                dcEdge)
-      call mpas_pool_get_array(meshPool, 'dvEdge', &
+      call mpas_pool_get_array_gpu(meshPool, 'dvEdge', &
                                dvEdge)
-      call mpas_pool_get_array(meshPool, 'areaCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'areaCell', &
                                areaCell)
-      call mpas_pool_get_array(meshPool, 'areaTriangle', &
+      call mpas_pool_get_array_gpu(meshPool, 'areaTriangle', &
                                areaTriangle)
-      call mpas_pool_get_array(meshPool, 'weightsOnEdge', &
+      call mpas_pool_get_array_gpu(meshPool, 'weightsOnEdge', &
                                weightsOnEdge)
-      call mpas_pool_get_array(meshPool, 'bottomDepth', &
+      call mpas_pool_get_array_gpu(meshPool, 'bottomDepth', &
                                bottomDepth)
-      call mpas_pool_get_array(meshPool, 'refBottomDepth', &
+      call mpas_pool_get_array_gpu(meshPool, 'refBottomDepth', &
                                refBottomDepth)
-      call mpas_pool_get_array(meshPool, 'refBottomDepthTopOfCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'refBottomDepthTopOfCell', &
                                refBottomDepthTopOfCell)
-      call mpas_pool_get_array(meshPool, 'vertCoordMovementWeights', &
+      call mpas_pool_get_array_gpu(meshPool, 'vertCoordMovementWeights', &
                                vertCoordMovementWeights)
-      call mpas_pool_get_array(meshPool, 'meshScalingDel2', &
+      call mpas_pool_get_array_gpu(meshPool, 'meshScalingDel2', &
                                meshScalingDel2)
-      call mpas_pool_get_array(meshPool, 'meshScalingDel4', &
+      call mpas_pool_get_array_gpu(meshPool, 'meshScalingDel4', &
                                meshScalingDel4)
-      call mpas_pool_get_array(meshPool, 'meshDensity', &
+      call mpas_pool_get_array_gpu(meshPool, 'meshDensity', &
                                meshDensity)
-      call mpas_pool_get_array(meshPool, 'angleEdge', &
+      call mpas_pool_get_array_gpu(meshPool, 'angleEdge', &
                                angleEdge)
-      call mpas_pool_get_array(meshPool, 'distanceToCoast', &
+      call mpas_pool_get_array_gpu(meshPool, 'distanceToCoast', &
                                distanceToCoast)
 
-      call mpas_pool_get_array(meshPool, 'weightsOnEdge', &
+      call mpas_pool_get_array_gpu(meshPool, 'weightsOnEdge', &
                                weightsOnEdge)
-      call mpas_pool_get_array(meshPool, 'kiteAreasOnVertex', &
+      call mpas_pool_get_array_gpu(meshPool, 'kiteAreasOnVertex', &
                                kiteAreasOnVertex)
-      call mpas_pool_get_array(meshPool, 'edgeTangentVectors', &
+      call mpas_pool_get_array_gpu(meshPool, 'edgeTangentVectors', &
                                edgeTangentVectors)
-      call mpas_pool_get_array(meshPool, 'edgeNormalVectors', &
+      call mpas_pool_get_array_gpu(meshPool, 'edgeNormalVectors', &
                                edgeNormalVectors)
-      call mpas_pool_get_array(meshPool, 'localVerticalUnitVectors', &
+      call mpas_pool_get_array_gpu(meshPool, 'localVerticalUnitVectors', &
                                localVerticalUnitVectors)
-      call mpas_pool_get_array(meshPool, 'cellTangentPlane', &
+      call mpas_pool_get_array_gpu(meshPool, 'cellTangentPlane', &
                                cellTangentPlane)
-      call mpas_pool_get_array(meshPool, 'coeffs_reconstruct', &
+      call mpas_pool_get_array_gpu(meshPool, 'coeffs_reconstruct', &
                                coeffs_reconstruct)
 
       ! For masks, we wish to convert to real multiplicative masks
       ! so retrieve integer version pointers and allocate real masks
       ! Once these are converted in Registry, we can eliminate this.
-      call mpas_pool_get_array(meshPool, 'edgeMask', &
+      call mpas_pool_get_array_gpu(meshPool, 'edgeMask', &
                                edgeMaskTmp)
-      call mpas_pool_get_array(meshPool, 'vertexMask', &
+      call mpas_pool_get_array_gpu(meshPool, 'vertexMask', &
                                vertexMaskTmp)
-      call mpas_pool_get_array(meshPool, 'cellMask', &
+      call mpas_pool_get_array_gpu(meshPool, 'cellMask', &
                                cellMaskTmp)
-      call mpas_pool_get_array(meshPool, 'edgeSignOnCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'edgeSignOnCell', &
                                edgeSignOnCellTmp)
-      call mpas_pool_get_array(meshPool, 'edgeSignOnVertex', &
+      call mpas_pool_get_array_gpu(meshPool, 'edgeSignOnVertex', &
                                edgeSignOnVertexTmp)
-      call mpas_pool_get_array(meshPool, 'boundaryEdge', &
+      call mpas_pool_get_array_gpu(meshPool, 'boundaryEdge', &
                                boundaryEdgeTmp)
-      call mpas_pool_get_array(meshPool, 'boundaryVertex', &
+      call mpas_pool_get_array_gpu(meshPool, 'boundaryVertex', &
                                boundaryVertexTmp)
-      call mpas_pool_get_array(meshPool, 'boundaryCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'boundaryCell', &
                                boundaryCellTmp)
 
       allocate ( &
@@ -567,98 +570,17 @@ contains
       end do
       invAreaCell(nCellsAll+1) = 0.0_RKIND
 
-      !-----------------------------------------------------------------
-      ! Copy mesh data to accelerator if needed.
-      !-----------------------------------------------------------------
-
-         !$acc enter data copyin( &
-         !$acc                   onSphere,                 &
-         !$acc                   sphereRadius,             &
-         !$acc                   nCellsAll,                &
-         !$acc                   nEdgesAll,                &
-         !$acc                   nVerticesAll,             &
-         !$acc                   nCellsOwned,              &
-         !$acc                   nEdgesOwned,              &
-         !$acc                   nVerticesOwned,           &
-         !$acc                   maxEdges,                 &
-         !$acc                   maxEdges2,                &
-         !$acc                   vertexDegree,             &
-         !$acc                   nVertLevels,              &
-         !$acc                   nVertLevelsP1,            &
-         !$acc                   nEdgesHalo,               &
-         !$acc                   nCellsHalo,               &
-         !$acc                   nVerticesHalo,            &
-         !$acc                   nEdgesOnEdge,             &
-         !$acc                   nEdgesOnCell,             &
-         !$acc                   minLevelCell,             &
-         !$acc                   minLevelEdgeTop,          &
-         !$acc                   minLevelEdgeBot,          &
-         !$acc                   minLevelVertexTop,        &
-         !$acc                   minLevelVertexBot,        &
-         !$acc                   maxLevelCell,             &
-         !$acc                   maxLevelEdgeTop,          &
-         !$acc                   maxLevelEdgeBot,          &
-         !$acc                   maxLevelVertexTop,        &
-         !$acc                   maxLevelVertexBot,        &
-         !$acc                   indexToCellID,            &
-         !$acc                   indexToEdgeID,            &
-         !$acc                   indexToVertexID,          &
-         !$acc                   edgesOnEdge,              &
-         !$acc                   cellsOnEdge,              &
-         !$acc                   verticesOnEdge,           &
-         !$acc                   cellsOnCell,              &
-         !$acc                   edgesOnCell,              &
-         !$acc                   verticesOnCell,           &
-         !$acc                   cellsOnVertex,            &
-         !$acc                   edgesOnVertex,            &
-         !$acc                   kiteIndexOnCell,          &
-         !$acc                   latCell,                  &
-         !$acc                   lonCell,                  &
-         !$acc                   xCell,                    &
-         !$acc                   yCell,                    &
-         !$acc                   zCell,                    &
-         !$acc                   latEdge,                  &
-         !$acc                   lonEdge,                  &
-         !$acc                   xEdge,                    &
-         !$acc                   yEdge,                    &
-         !$acc                   zEdge,                    &
-         !$acc                   latVertex,                &
-         !$acc                   lonVertex,                &
-         !$acc                   xVertex,                  &
-         !$acc                   yVertex,                  &
-         !$acc                   zVertex,                  &
-         !$acc                   fEdge,                    &
-         !$acc                   fVertex,                  &
-         !$acc                   fCell,                    &
-         !$acc                   dcEdge,                   &
-         !$acc                   dvEdge,                   &
-         !$acc                   areaCell,                 &
-         !$acc                   invAreaCell,              &
-         !$acc                   areaTriangle,             &
-         !$acc                   bottomDepth,              &
-         !$acc                   refBottomDepth,           &
-         !$acc                   refBottomDepthTopOfCell,  &
-         !$acc                   vertCoordMovementWeights, &
-         !$acc                   meshScalingDel2,          &
-         !$acc                   meshScalingDel4,          &
-         !$acc                   meshDensity,              &
-         !$acc                   angleEdge,                &
-         !$acc                   distanceToCoast,          &
-         !$acc                   edgeMask,                 &
-         !$acc                   cellMask,                 &
-         !$acc                   vertexMask,               &
-         !$acc                   boundaryEdge,             &
-         !$acc                   boundaryCell,             &
-         !$acc                   boundaryVertex,           &
-         !$acc                   edgeSignOnCell,           &
-         !$acc                   edgeSignOnVertex,         &
-         !$acc                   weightsOnEdge,            &
-         !$acc                   kiteAreasOnVertex,        &
-         !$acc                   edgeTangentVectors,       &
-         !$acc                   edgeNormalVectors,        &
-         !$acc                   localVerticalUnitVectors, &
-         !$acc                   cellTangentPlane,         &
-         !$acc                   coeffs_reconstruct)
+!$acc update device(nEdgesHalo,nCellsHalo,nVerticesHalo,nEdgesOnEdge,nEdgesOnCell,minLevelCell,minLevelEdgeTop,minLevelEdgeBot,&
+!$acc               minLevelVertexTop,minLevelVertexBot,maxLevelCell,maxLevelEdgeTop,maxLevelEdgeBot,maxLevelVertexTop,&
+!$acc               maxLevelVertexBot,indexToCellID,indexToEdgeID,indexToVertexID,edgesOnEdge,cellsOnEdge,verticesOnEdge,&
+!$acc               cellsOnCell,edgesOnCell,verticesOnCell,cellsOnVertex,edgesOnVertex,kiteIndexOnCell,latCell,lonCell,xCell,&
+!$acc               yCell,zCell,latEdge,lonEdge,xEdge,yEdge,zEdge,latVertex,lonVertex,xVertex,yVertex,zVertex,fEdge,fVertex,&
+!$acc               fCell,dcEdge,dvEdge,areaCell,invAreaCell,areaTriangle,bottomDepth,refBottomDepth,refBottomDepthTopOfCell,&
+!$acc               vertCoordMovementWeights,meshScalingDel2,meshScalingDel4,meshDensity,angleEdge,distanceToCoast,edgeMask,&
+!$acc               cellMask,vertexMask,boundaryEdge,boundaryCell,boundaryVertex,edgeSignOnCell,edgeSignOnVertex,weightsOnEdge,&
+!$acc               kiteAreasOnVertex,edgeTangentVectors,edgeNormalVectors,localVerticalUnitVectors,cellTangentPlane,coeffs_reconstruct,&
+!$acc               cellMaskTmp,boundaryCellTmp,edgeSignOnCellTmp,edgeMaskTmp,boundaryEdgeTmp,vertexMaskTmp,boundaryVertexTmp,&
+!$acc               edgeSignOnVertexTmp)
 
 !-------------------------------------------------------------------------------
 
@@ -698,97 +620,6 @@ contains
       !***
 
       err = 0
-
-      ! First remove data from the device. Must remove components first,
-      ! then remove the mesh type itself.
-
-      !$acc exit data delete(onSphere,          &
-      !$acc                  sphereRadius,      &
-      !$acc                  nCellsAll,         &
-      !$acc                  nEdgesAll,         &
-      !$acc                  nVerticesAll,      &
-      !$acc                  nCellsOwned,       &
-      !$acc                  nEdgesOwned,       &
-      !$acc                  nVerticesOwned,    &
-      !$acc                  maxEdges,          &
-      !$acc                  maxEdges2,         &
-      !$acc                  vertexDegree,      &
-      !$acc                  nVertLevels,       &
-      !$acc                  nVertLevelsP1,     &
-      !$acc                  nEdgesHalo,        &
-      !$acc                  nCellsHalo,        &
-      !$acc                  nVerticesHalo,     &
-      !$acc                  nEdgesOnEdge,      &
-      !$acc                  nEdgesOnCell,      &
-      !$acc                  minLevelCell,      &
-      !$acc                  minLevelEdgeTop,   &
-      !$acc                  minLevelEdgeBot,   &
-      !$acc                  minLevelVertexTop, &
-      !$acc                  minLevelVertexBot, &
-      !$acc                  maxLevelCell,      &
-      !$acc                  maxLevelEdgeTop,   &
-      !$acc                  maxLevelEdgeBot,   &
-      !$acc                  maxLevelVertexTop, &
-      !$acc                  maxLevelVertexBot, &
-      !$acc                  indexToCellID,     &
-      !$acc                  indexToEdgeID,     &
-      !$acc                  indexToVertexID,   &
-      !$acc                  edgesOnEdge,       &
-      !$acc                  cellsOnEdge,       &
-      !$acc                  verticesOnEdge,    &
-      !$acc                  cellsOnCell,       &
-      !$acc                  edgesOnCell,       &
-      !$acc                  verticesOnCell,    &
-      !$acc                  cellsOnVertex,     &
-      !$acc                  edgesOnVertex,     &
-      !$acc                  kiteIndexOnCell,   &
-      !$acc                  latCell,           &
-      !$acc                  lonCell,           &
-      !$acc                  xCell,             &
-      !$acc                  yCell,             &
-      !$acc                  zCell,             &
-      !$acc                  latEdge,           &
-      !$acc                  lonEdge,           &
-      !$acc                  xEdge,             &
-      !$acc                  yEdge,             &
-      !$acc                  zEdge,             &
-      !$acc                  latVertex,         &
-      !$acc                  lonVertex,         &
-      !$acc                  xVertex,           &
-      !$acc                  yVertex,           &
-      !$acc                  zVertex,           &
-      !$acc                  fEdge,             &
-      !$acc                  fVertex,           &
-      !$acc                  fCell,             &
-      !$acc                  dcEdge,            &
-      !$acc                  dvEdge,            &
-      !$acc                  areaCell,          &
-      !$acc                  invAreaCell,       &
-      !$acc                  areaTriangle,      &
-      !$acc                  bottomDepth,       &
-      !$acc                  refBottomDepth,    &
-      !$acc                  refBottomDepthTopOfCell, &
-      !$acc                  vertCoordMovementWeights, &
-      !$acc                  meshScalingDel2,   &
-      !$acc                  meshScalingDel4,   &
-      !$acc                  meshDensity,       &
-      !$acc                  angleEdge,         &
-      !$acc                  distanceToCoast,   &
-      !$acc                  edgeMask,          &
-      !$acc                  cellMask,          &
-      !$acc                  vertexMask,        &
-      !$acc                  boundaryEdge,      &
-      !$acc                  boundaryCell,      &
-      !$acc                  boundaryVertex,    &
-      !$acc                  edgeSignOnCell,    &
-      !$acc                  edgeSignOnVertex,  &
-      !$acc                  weightsOnEdge,     &
-      !$acc                  kiteAreasOnVertex, &
-      !$acc                  edgeTangentVectors,&
-      !$acc                  edgeNormalVectors, &
-      !$acc                  localVerticalUnitVectors, &
-      !$acc                  cellTangentPlane,  &
-      !$acc                  coeffs_reconstruct)
 
       ! Reset all scalars to zero
       onSphere  = .false.
@@ -872,9 +703,6 @@ contains
                cellTangentPlane, &
                coeffs_reconstruct)
 
-#ifdef MPAS_OPENACC
-      !$acc exit data delete(edgeAreaFractionOfCell)
-#endif
       deallocate (nEdgesHalo, &
                   nCellsHalo, &
                   nVerticesHalo, &
@@ -1074,22 +902,23 @@ contains
       ! For masks, we converted to real masks, so need to recompute for
       ! updated values. Probably only the edgeSign masks need updating, but
       ! do them all to be sure.
-      call mpas_pool_get_array(meshPool, 'edgeMask', &
+      call mpas_pool_get_array_gpu(meshPool, 'edgeMask', &
                                edgeMaskTmp)
-      call mpas_pool_get_array(meshPool, 'vertexMask', &
+      call mpas_pool_get_array_gpu(meshPool, 'vertexMask', &
                                vertexMaskTmp)
-      call mpas_pool_get_array(meshPool, 'cellMask', &
+      call mpas_pool_get_array_gpu(meshPool, 'cellMask', &
                                cellMaskTmp)
-      call mpas_pool_get_array(meshPool, 'edgeSignOnCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'edgeSignOnCell', &
                                edgeSignOnCellTmp)
-      call mpas_pool_get_array(meshPool, 'edgeSignOnVertex', &
+      call mpas_pool_get_array_gpu(meshPool, 'edgeSignOnVertex', &
                                edgeSignOnVertexTmp)
-      call mpas_pool_get_array(meshPool, 'boundaryEdge', &
+      call mpas_pool_get_array_gpu(meshPool, 'boundaryEdge', &
                                boundaryEdgeTmp)
-      call mpas_pool_get_array(meshPool, 'boundaryVertex', &
+      call mpas_pool_get_array_gpu(meshPool, 'boundaryVertex', &
                                boundaryVertexTmp)
-      call mpas_pool_get_array(meshPool, 'boundaryCell', &
+      call mpas_pool_get_array_gpu(meshPool, 'boundaryCell', &
                                boundaryCellTmp)
+!$acc update host(edgeMaskTmp,vertexMaskTmp,cellMaskTmp,edgeSignOnCellTmp,edgeSignOnVertexTmp,boundaryEdgeTmp,boundaryVertexTmp,boundaryCellTmp)
 
       do n = 1, nCellsAll+1
       do k = 1, nVertLevels
@@ -1133,20 +962,7 @@ contains
       ! NOTE: if we end up computing some fields on the device during
       !       init, the update must go the opposite direction (update host)
 
-      !$acc update device(onSphere,                 &
-      !$acc               sphereRadius,             &
-      !$acc               nCellsAll,                &
-      !$acc               nEdgesAll,                &
-      !$acc               nVerticesAll,             &
-      !$acc               nCellsOwned,              &
-      !$acc               nEdgesOwned,              &
-      !$acc               nVerticesOwned,           &
-      !$acc               maxEdges,                 &
-      !$acc               maxEdges2,                &
-      !$acc               vertexDegree,             &
-      !$acc               nVertLevels,              &
-      !$acc               nVertLevelsP1,            &
-      !$acc               nEdgesHalo,               &
+      !$acc update device(nEdgesHalo,               &
       !$acc               nCellsHalo,               &
       !$acc               nVerticesHalo,            &
       !$acc               nEdgesOnEdge,             &
@@ -1219,7 +1035,9 @@ contains
       !$acc               edgeNormalVectors,        &
       !$acc               localVerticalUnitVectors, &
       !$acc               cellTangentPlane,         &
-      !$acc               coeffs_reconstruct)
+      !$acc               coeffs_reconstruct,&
+!$acc                     edgeSignOnCellTmp,&
+!$acc                     edgeSignOnVertexTmp)
 
 !-------------------------------------------------------------------------------
 
@@ -1533,14 +1351,15 @@ contains
       call mpas_pool_get_subpool(block%structs, 'forcing', forcingPool)
 
       ! Extract needed variables from pools
-      call mpas_pool_get_array(statePool, 'layerThickness', &
+      call mpas_pool_get_array_gpu(statePool, 'layerThickness', &
                                            layerThickness, 1)
 
-      call mpas_pool_get_array(verticalMeshPool, 'refZMid', refZMid)
-      call mpas_pool_get_array(verticalMeshPool, 'refLayerThickness', &
+      call mpas_pool_get_array_gpu(verticalMeshPool, 'refZMid', refZMid)
+      call mpas_pool_get_array_gpu(verticalMeshPool, 'refLayerThickness', &
                                                   refLayerThickness)
 
-      call mpas_pool_get_array(forcingPool, 'landIceMask', landIceMask)
+      call mpas_pool_get_array_gpu(forcingPool, 'landIceMask', landIceMask)
+!$acc update host(layerThickness,refZMid,refLayerThickness,landIceMask)
       if (associated(landIceMask)) then
          landIceFlag = .true.  ! ice shelves
       else
@@ -1687,6 +1506,7 @@ contains
           MPAS_LOG_CRIT)
       endif
 
+!$acc update device(refZMid,refLayerThickness,landIceMask)
    !--------------------------------------------------------------------
 
    end subroutine ocn_meshVertCoordInit !}}}
@@ -1726,9 +1546,6 @@ contains
 
       ! Allocate space
       allocate (edgeAreaFractionOfCell(maxEdges,nCellsAll), STAT=ierr)
-#ifdef MPAS_OPENACC
-      !$acc enter data create(edgeAreaFractionOfCell)
-#endif
       if (ierr /= 0) call mpas_log_write( &
          'Error allocating edgeAreaFractionOfCell in ocn_mesh', &
           MPAS_LOG_CRIT)
@@ -1740,9 +1557,7 @@ contains
                dcEdge(iEdge)*dvEdge(iEdge)/areaCell(iCell)
       end do
       end do
-#ifdef MPAS_OPENACC
       !$acc update device(edgeAreaFractionOfCell)
-#endif
 
    !--------------------------------------------------------------------
 

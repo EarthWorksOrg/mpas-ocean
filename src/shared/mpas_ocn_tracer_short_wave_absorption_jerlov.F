@@ -35,7 +35,9 @@ module ocn_tracer_short_wave_absorption_jerlov
    !--------------------------------------------------------------------
 
    public :: ocn_tracer_short_wave_absorption_jerlov_tend, &
-             ocn_get_jerlov_fraction
+             ocn_tracer_short_wave_absorption_jerlov_tend_gpu, &
+             ocn_get_jerlov_fraction, &
+             ocn_get_jerlov_fraction_gpu
 
    !--------------------------------------------------------------------
    !
@@ -58,6 +60,7 @@ module ocn_tracer_short_wave_absorption_jerlov
       rfac   = (/ 0.58_RKIND, 0.62_RKIND, 0.67_RKIND, 0.77_RKIND, 0.78_RKIND /), &
       depth1 = (/ 0.35_RKIND, 0.60_RKIND, 1.00_RKIND, 1.50_RKIND, 1.40_RKIND /), &
       depth2 = (/ 23.0_RKIND, 20.0_RKIND, 17.0_RKIND, 14.0_RKIND, 7.90_RKIND /)
+!$acc declare create(rfac,depth1,depth2)
 
 !***********************************************************************
 
@@ -215,6 +218,161 @@ contains
 
    end subroutine ocn_tracer_short_wave_absorption_jerlov_tend!}}}
 
+   subroutine ocn_tracer_short_wave_absorption_jerlov_tend_gpu(meshPool, forcingPool, index_temperature, layerThickness, &
+                                        penetrativeTemperatureFlux, penetrativeTemperatureFluxOBL, tend, &
+                                        bottomLayerShortwaveTemperatureFlux, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: &
+         meshPool, forcingPool          !< Input: mesh information
+
+      real (kind=RKIND), dimension(:), intent(in) :: &
+        penetrativeTemperatureFlux !< Input: penetrative temperature flux through the surface
+
+      real (kind=RKIND), dimension(:), intent(out) :: &
+        penetrativeTemperatureFluxOBL
+
+      real (kind=RKIND), dimension(:), intent(out) :: &
+        bottomLayerShortwaveTemperatureFlux
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: layerThickness !< Input: Layer thicknesses
+
+      integer, intent(in) :: index_temperature
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:,:), intent(inout) :: &
+         tend          !< Input/Output: velocity tendency
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iCell, k, depLev, nCells
+      integer, pointer :: nVertLevels
+      integer, dimension(:), pointer :: nCellsArray
+
+      integer, dimension(:), pointer :: minLevelCell, maxLevelCell
+
+      real (kind=RKIND) :: depth, fluxRemaining
+      real (kind=RKIND), dimension(:), pointer :: refBottomDepth
+      real (kind=RKIND), dimension(:), allocatable :: weights
+
+      err = 0
+
+      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+      call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels)
+
+      call mpas_pool_get_array_gpu(meshPool, 'minLevelCell', minLevelCell)
+      call mpas_pool_get_array_gpu(meshPool, 'maxLevelCell', maxLevelCell)
+      call mpas_pool_get_array_gpu(meshPool, 'refBottomDepth', refBottomDepth)
+
+      allocate(weights(nVertLevels+1))
+      weights = 0.0_RKIND
+      weights(1) = 1.0_RKIND
+
+!$acc update device(rfac,depth1,depth2)
+
+!$acc data present(minLevelCell,maxLevelCell,layerThickness,tend,penetrativeTemperatureFlux,&
+!$acc               bottomLayerShortwaveTemperatureFlux,penetrativeTemperatureFluxOBL)
+
+      nCells = nCellsArray( 3 )
+
+#ifndef CPRPGI
+      !$omp parallel
+      !$omp do schedule(runtime) private(fluxRemaining, depth, k, depLev) &
+      !$omp firstprivate(weights)
+#endif
+!$acc parallel
+!$acc loop gang vector private(depth,fluxRemaining,weights,k,depLev)
+      do iCell = 1, nCells
+         depth = 0.0_RKIND ! depth relative to minLevelCell(iCell)
+         fluxRemaining = 1.0_RKIND
+!$acc loop seq
+         do k = minLevelCell(iCell), maxLevelCell(iCell)
+            depth = depth + layerThickness(k, iCell)
+
+            call ocn_get_jerlov_fraction_gpu(depth, weights(k+1))
+            tend(index_temperature, k, iCell) = tend(index_temperature, k, iCell) + penetrativeTemperatureFlux(iCell) &
+                                              * (weights(k) - weights(k+1))
+            fluxRemaining = fluxRemaining - (weights(k) - weights(k+1))
+         end do
+
+         ! based on coupled testing we only track the solar induced warming incident on the bottom ocean
+         k = maxLevelCell(iCell)
+         if(k > 0 .and. fluxRemaining > 0.0_RKIND) then
+            bottomLayerShortwaveTemperatureFlux(iCell) = penetrativeTemperatureFlux(iCell) * fluxRemaining
+         else
+            bottomLayerShortwaveTemperatureFlux(iCell) = 0.0_RKIND
+         end if
+
+         depth = 0.0_RKIND
+!$acc loop seq
+         do k=minLevelCell(iCell),maxLevelCell(iCell)
+           depth = depth + layerThickness(k,iCell)
+           if(depth > abs(config_surface_buoyancy_depth)) exit
+         enddo
+
+         if(k == maxLevelCell(iCell) .or. k == minLevelCell(iCell)) then
+           depLev=minLevelCell(iCell)+1
+         else
+           depLev=k
+         endif
+         penetrativeTemperatureFluxOBL(iCell)=penetrativeTemperatureFlux(iCell)*weights(depLev)
+
+      end do
+!$acc end parallel
+#ifndef CPRPGI
+      !$omp end do
+      !$omp end parallel
+#endif
+
+      if(config_enable_shortwave_energy_fixer) then
+#ifndef CPRPGI
+         !$omp parallel
+         !$omp do schedule(runtime) private(k)
+#endif
+!$acc parallel
+!$acc loop gang vector private(k)
+         do iCell = 1, nCells
+            k = maxLevelCell(iCell)
+            tend(index_temperature, k, iCell) = tend(index_temperature, k, iCell) + &
+                      bottomLayerShortwaveTemperatureFlux(iCell)
+         end do
+!$acc end parallel
+#ifndef CPRPGI
+         !$omp end do
+         !$omp end parallel
+#endif
+      end if
+
+!$acc end data
+
+      deallocate(weights)
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_tracer_short_wave_absorption_jerlov_tend_gpu!}}}
+
 !***********************************************************************
 !
 !  routine ocn_init_jerlov_fractions
@@ -263,6 +421,42 @@ contains
                   + (1.0_RKIND - rfac(config_jerlov_water_type)) * exp(-depth/depth2(config_jerlov_water_type))
       endif
    end subroutine ocn_get_jerlov_fraction!}}}
+
+   subroutine ocn_get_jerlov_fraction_gpu(depth, weight)!{{{
+!$acc routine seq
+!  Note: below 200m the solar penetration gets set to zero,
+!     otherwise the limit for the exponent ($+/- 5678$) needs to be
+!     taken care of.
+
+      real (kind=RKIND), intent(in) :: depth !< Input: Depth of bottom of cell
+      real (kind=RKIND), intent(out) :: weight !< Output: Weight for Jerlov absorption
+
+!-----------------------------------------------------------------------
+!
+!  local variables
+!
+!-----------------------------------------------------------------------
+
+!
+      integer,  parameter :: num_water_types = 5  ! max number of different water types
+
+      ! I don't understand what the previous two lines are for.  They appear unnecessary
+
+      real (kind=RKIND), parameter :: depth_cutoff = -200.0_RKIND
+
+!-----------------------------------------------------------------------
+!
+!  compute absorption fraction
+!
+!-----------------------------------------------------------------------
+
+      if (-depth < depth_cutoff) then
+         weight = 0.0_RKIND
+      else
+         weight = rfac(mod_jerlov_water_type) * exp(-depth/depth1(mod_jerlov_water_type)) &
+                  + (1.0_RKIND - rfac(mod_jerlov_water_type)) * exp(-depth/depth2(mod_jerlov_water_type))
+      endif
+   end subroutine ocn_get_jerlov_fraction_gpu!}}}
 
 end module ocn_tracer_short_wave_absorption_jerlov
 
