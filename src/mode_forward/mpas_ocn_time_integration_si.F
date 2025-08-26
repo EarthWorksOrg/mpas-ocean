@@ -56,7 +56,9 @@ module ocn_time_integration_si
    use ocn_surface_land_ice_fluxes
    use ocn_transport_tests
 
-   use cublas
+#ifdef USE_CUBLAS
+    use cublas
+#endif
 
    implicit none
    private
@@ -135,7 +137,9 @@ module ocn_time_integration_si
       ncpus,            &! Total number of cores
       nSiLargeIter       ! #iteration for the barotropic system
    character(len=5) :: si_algorithm ! Name of the iterative solver algorithm
-   type(cublasHandle) :: h
+#ifdef USE_CUBLAS
+    type(cublasHandle) :: h
+#endif
    integer :: istat
 !$acc declare create(prec_ivmat,SIcst_allreduce_local2,SIcst_allreduce_global2,SIcst_allreduce_local3,SIcst_allreduce_global3,&
 !$acc                SIcst_allreduce_local9,SIcst_allreduce_global9,globalReprodSum2fld1,globalReprodSum2fld2,globalReprodSum3fld1,&
@@ -2638,7 +2642,9 @@ module ocn_time_integration_si
       'MPAS was not compiled with LAPACK/BLAS. LAPACK required for SI' &
       , MPAS_LOG_CRIT)
 #endif
-      istat = cublasCreate(h)
+#ifdef USE_CUBLAS
+       istat = cublasCreate(h)
+#endif
 
       !*** Set mask for using velocity correction
       if (config_vel_correction) then
@@ -3425,6 +3431,12 @@ module ocn_time_integration_si
                           SIvec_in(1:nPrecVec) , 1, 0.0_RKIND,  &
                           SIvec_out(1:nPrecVec), 1)
 !$acc end host_data
+#else
+#ifdef USE_LAPACK
+      call DSPMV('U', nPrecVec, 1.0_RKIND, prec_ivmat, &
+                 SIvec_in(1:nPrecVec) , 1, 0.0_RKIND,  &
+                 SIvec_out(1:nPrecVec), 1)
+#endif
 #endif
       elseif ( trim(config_btr_si_preconditioner) == &
                                         'block_jacobi' ) then
@@ -3443,6 +3455,12 @@ module ocn_time_integration_si
                           SIvec_in(1:nPrecVec) , 1, 0.0_RKIND,  &
                           SIvec_out(1:nPrecVec), 1)
 !$acc end host_data
+#else
+#ifdef USE_LAPACK
+      call DSPMV('U', nPrecVec, 1.0_RKIND, prec_ivmat, &
+                 SIvec_in(1:nPrecVec) , 1, 0.0_RKIND,  &
+                 SIvec_out(1:nPrecVec), 1)
+#endif
 #endif
       elseif ( trim(config_btr_si_preconditioner) == &
                                               'jacobi' ) then
