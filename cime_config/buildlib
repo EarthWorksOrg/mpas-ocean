@@ -215,15 +215,15 @@ def _build_mpaso():
         #    raise
         compiler = case.get_value("COMPILER")
         if compiler == 'intel':
-            fixedflags =  '-free'
+            fixedflags =  '"-free'
         elif compiler == 'intel-oneapi':
-            fixedflags =  '-free'
+            fixedflags =  '"-free'
         elif compiler == 'gnu':
-            fixedflags =  '-ffree-form'
+            fixedflags =  '"-ffree-form'
         elif compiler == 'nvhpc':
-            fixedflags =  '-Mfree'
+            fixedflags =  '"-Mfree'
         else:
-            fixedflags = ''
+            fixedflags = '"'
 
     with Case(caseroot) as case:
         casetools = case.get_value("CASETOOLS")
@@ -282,8 +282,10 @@ def _build_mpaso():
 
         user_cppdefs = '\"-DUSE_PIO2 -DMPAS_PIO_SUPPORT -D_MPI -DEXCLUDE_INIT_MODE -DMPAS_NO_ESMF_INIT -DMPAS_EXTERNAL_ESMF_LIB -DMPAS_PERF_MOD_TIMERS -DUSE_LAPACK'
         if gpu_type != 'none':
-            user_cppdefs += ' -DMPAS_OPENACC'
+            user_cppdefs += ' -DMPAS_OPENACC -DMPAS_NVTX_RANGES '
+            fixedflags += ' -gopt -O4 -Mnosave -Mrecursive -Mstack_arrays -acc=gpu -Minfo=acc -gpu=lineinfo,cc80,safecache,mem:managed -cudalib=cublas '
         user_cppdefs += ' -DMPAS_NAMELIST_SUFFIX=ocean\"'
+        fixedflags += '"'
 
         cmd = "{} complib -j {} MODEL=mpaso COMPLIB={} -f {} USER_CPPDEFS={} FIXEDFLAGS={} {}" \
             .format(gmake, gmake_j, complib, makefile, user_cppdefs, fixedflags, get_standard_makefile_args(case))
