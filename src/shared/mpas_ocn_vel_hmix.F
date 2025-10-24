@@ -48,6 +48,7 @@ module ocn_vel_hmix
    !--------------------------------------------------------------------
 
    public :: ocn_vel_hmix_tend, &
+             ocn_vel_hmix_tend_gpu, &
              ocn_vel_hmix_init
 
    !--------------------------------------------------------------------
@@ -139,6 +140,66 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_vel_hmix_tend!}}}
+
+   subroutine ocn_vel_hmix_tend_gpu(div, relVort, tend, err)!{{{
+
+      !-----------------------------------------------------------------
+      ! input variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         div,           &!< [in] velocity divergence
+         relVort         !< [in] relative vorticity
+
+      !-----------------------------------------------------------------
+      ! input/output variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         tend            !< [inout] accumulated velocity tendency
+
+      !-----------------------------------------------------------------
+      ! output variables
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< [out] error flag
+
+      !-----------------------------------------------------------------
+      ! local variables
+      !-----------------------------------------------------------------
+
+      integer :: &
+         err1     ! local error flag
+
+      ! End preamble
+      !-----------------------------------------------------------------
+      ! Begin code
+
+      !*** Initialize return error code and viscosity
+      !*** exit early if not turned on, otherwise start relevant timer
+
+      err = 0
+      if (hmixOff) return
+      call mpas_timer_start("vel hmix gpu")
+
+      ! call relevant routines for computing tendencies
+      ! note that the user can choose multiple options and the
+      !   tendencies will be added together
+
+      call ocn_vel_hmix_del2_tend_gpu(div, relVort, tend, err1)
+      err = ior(err1, err)
+
+      call ocn_vel_hmix_leith_tend_gpu(div, relVort, tend, err1)
+      err = ior(err1, err)
+
+      call ocn_vel_hmix_del4_tend_gpu(div, relVort, tend, err1)
+      err = ior(err1, err)
+
+      call mpas_timer_stop("vel hmix gpu")
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_vel_hmix_tend_gpu!}}}
 
 !***********************************************************************
 !

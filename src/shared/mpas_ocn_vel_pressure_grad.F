@@ -46,6 +46,7 @@ module ocn_vel_pressure_grad
    !--------------------------------------------------------------------
 
    public :: ocn_vel_pressure_grad_tend, &
+             ocn_vel_pressure_grad_tend_gpu, &
              ocn_vel_pressure_grad_init
 
    !--------------------------------------------------------------------
@@ -194,16 +195,9 @@ contains
 
          ! pressure for sea surface height = - g grad ssh
 
-#ifdef MPAS_OPENACC
-         !$acc parallel loop &
-         !$acc    present(cellsOnEdge, minLevelEdgeBot, maxLevelEdgeTop, dcEdge, &
-         !$acc            tend, edgeMask, ssh,surfacePressure) &
-         !$acc    private(cell1, cell2, invdcEdge, k, kMin, kMax)
-#else
          !$omp parallel
          !$omp do schedule(runtime) &
          !$omp    private(cell1, cell2, invdcEdge, k, kMin, kMax)
-#endif
          do iEdge=1,nEdgesOwned
             cell1 = cellsOnEdge(1,iEdge)
             cell2 = cellsOnEdge(2,iEdge)
@@ -219,26 +213,17 @@ contains
                                                - surfacePressure(cell1)) )
             end do
          end do
-#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-#endif
 
       case (pGradTypePZmid)
 
          ! pressure for generalized coordinates
          ! -1/density_0 (grad p_k + density g grad z_k^{mid})
 
-#ifdef MPAS_OPENACC
-         !$acc parallel loop &
-         !$acc    present(cellsOnEdge, minLevelEdgeBot, maxLevelEdgeTop, dcEdge, zMid, &
-         !$acc            tend, edgeMask, pressure, density) &
-         !$acc    private(cell1, cell2, invdcEdge, k, kMin, kMax)
-#else
          !$omp parallel
          !$omp do schedule(runtime) &
          !$omp    private(cell1, cell2, invdcEdge, k, kMin, kMax)
-#endif
          do iEdge=1,nEdgesOwned
             cell1 = cellsOnEdge(1,iEdge)
             cell2 = cellsOnEdge(2,iEdge)
@@ -256,26 +241,17 @@ contains
                                  (zMid(k,cell2)-zMid(k,cell1)))
             end do
          end do
-#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-#endif
 
       case (pGradTypeMontPot)
 
          ! For pure isopycnal coordinates, this is just grad(M),
          ! the gradient of Montgomery Potential
 
-#ifdef MPAS_OPENACC
-         !$acc parallel loop &
-         !$acc    present(cellsOnEdge, minLevelEdgeBot, maxLevelEdgeTop, dcEdge, &
-         !$acc            tend, edgeMask, montgomeryPotential) &
-         !$acc    private(cell1, cell2, invdcEdge, k, kMin, kMax)
-#else
          !$omp parallel
          !$omp do schedule(runtime) &
          !$omp    private(cell1, cell2, invdcEdge, k, kMin, kMax)
-#endif
          do iEdge=1,nEdgesOwned
             cell1 = cellsOnEdge(1,iEdge)
             cell2 = cellsOnEdge(2,iEdge)
@@ -290,10 +266,8 @@ contains
                                   montgomeryPotential(k,cell1)))
             end do
          end do
-#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-#endif
 
       case (pGradTypeMontPotDens)
 
@@ -304,17 +278,9 @@ contains
          ! Where rho is the potential density.
          ! See Bleck (2002) equation 1, and last equation in Appendix A.
 
-#ifdef MPAS_OPENACC
-         !$acc parallel loop &
-         !$acc    present(cellsOnEdge, dcEdge, minLevelEdgeBot, maxLevelEdgeTop, &
-         !$acc            edgeMask, tend, montgomeryPotential, &
-         !$acc            pressure, potentialDensity) &
-         !$acc    private(cell1, cell2, invdcEdge, k, kMin, kMax)
-#else
          !$omp parallel
          !$omp do schedule(runtime) &
          !$omp    private(cell1, cell2, invdcEdge, k, kMin, kMax)
-#endif
          do iEdge=1,nEdgesOwned
             cell1 = cellsOnEdge(1,iEdge)
             cell2 = cellsOnEdge(2,iEdge)
@@ -333,29 +299,17 @@ contains
                               - 1.0_RKIND/potentialDensity(k,cell1)))
             end do
          end do
-#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-#endif
 
       case (pGradTypeJacobDens)
 
          allocate(JacobianDxDs(nVertLevels,nEdgesAll))
-         !$acc enter data create (JacobianDxDs)
 
-#ifdef MPAS_OPENACC
-         !$acc parallel loop &
-         !$acc    present(cellsOnEdge, minLevelEdgeBot, maxLevelEdgeTop, dcEdge, &
-         !$acc            edgeMask, pressure, density, zMid, tend, &
-         !$acc            JacobianDxDs) &
-         !$acc    private(cell1, cell2, invdcEdge, k, kMin, kMax, pGrad, &
-         !$acc            Area, zStar, zC, zGamma, rhoL, rhoR)
-#else
          !$omp parallel
          !$omp do schedule(runtime) &
          !$omp    private(cell1, cell2, invdcEdge, k, kMin, kMax, pGrad, &
          !$omp            Area, zStar, zC, zGamma, rhoL, rhoR)
-#endif
          do iEdge=1,nEdgesOwned
             cell1 = cellsOnEdge(1,iEdge)
             cell2 = cellsOnEdge(2,iEdge)
@@ -424,37 +378,21 @@ contains
 
             end do
          end do
-#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-#endif
 
         deallocate(JacobianDxDs)
-        !$acc exit data delete(JacobianDxDs)
 
      case (pGradTypeJacobTS)
 
          allocate(JacobianDxDs(nVertLevels,nEdgesAll), &
                   JacobianTz(nVertLevels,nEdgesAll), &
                   JacobianSz(nVertLevels,nEdgesAll))
-         !$acc enter data create(JacobianDxDs, &
-         !$acc                   JacobianTz, JacobianSz)
 
-#ifdef MPAS_OPENACC
-         !$acc parallel loop &
-         !$acc    present(cellsOnEdge, minLevelEdgeBot, maxLevelEdgeTop, dcEdge, &
-         !$acc            zMid, tracers, edgeMask, pressure, &
-         !$acc            density, tend, thermExpCoeff, &
-         !$acc            salineContractCoeff, &
-         !$acc            JacobianTz, JacobianSz, JacobianDxDs) &
-         !$acc    private(cell1, cell2, invdcEdge, k, kMin, kMax, alpha, beta,&
-         !$acc         TL, TR, SL, SR, Area, zStar, zC, zGamma, pGrad)
-#else
          !$omp parallel
          !$omp do schedule(runtime) &
          !$omp private(cell1, cell2, invdcEdge, k, kMin, kMax, alpha, beta, &
          !$omp         TL, TR, SL, SR, Area, zStar, zC, zGamma, pGrad)
-#endif
          do iEdge=1,nEdgesOwned
             cell1 = cellsOnEdge(1,iEdge)
             cell2 = cellsOnEdge(2,iEdge)
@@ -552,25 +490,16 @@ contains
 
             end do
          end do
-#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-#endif
 
-         !$acc exit data delete (JacobianDxDs, JacobianTz, JacobianSz)
          deallocate(JacobianDxDs, JacobianTz, JacobianSz)
 
       case (pGradTypeConstForced)
 
-#ifdef MPAS_OPENACC
-         !$acc parallel loop &
-         !$acc    present(angleEdge,maxLevelEdgeTop, tend, edgeMask) &
-         !$acc    private(pGrad, k)
-#else
          !$omp parallel
          !$omp do schedule(runtime) &
          !$omp    private(pGrad, k)
-#endif
          do iEdge=1,nEdgesOwned
             ! compute the pressure gradient to be applied at the edge
             pGrad = zonalSshGrad * cos(angleEdge(iEdge)) + meridSshGrad * sin(angleEdge(iEdge))
@@ -579,10 +508,8 @@ contains
                tend(k,iEdge) = tend(k,iEdge) - gravity * edgeMask(k,iEdge) * pGrad
             end do
          end do
-#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-#endif
 
       case default
 
@@ -612,6 +539,464 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_vel_pressure_grad_tend!}}}
+
+   subroutine ocn_vel_pressure_grad_tend_gpu(ssh, nonhydrostaticPressure, &
+                                  pressure, surfacePressure, &
+                                  montgomeryPotential, zMid, &
+                                  density, potentialDensity, &
+                                  indxT, indxS, tracers, &
+                                  thermExpCoeff, salineContractCoeff, &
+                                  tend, err)!{{{
+
+      implicit none
+
+      !-----------------------------------------------------------------
+      ! input variables
+      !-----------------------------------------------------------------
+
+      integer, intent(in) :: &
+         indxT,              &!< [in] tracer array index for temperature
+         indxS                !< [in] tracer array index for salt
+
+      real (kind=RKIND), dimension(:), intent(in) :: &
+         ssh,                &!< [in] sea surface height
+         surfacePressure      !< [in] surface pressure
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         pressure,            &!< [in] Pressure field
+         montgomeryPotential, &!< [in] Mongomery potential
+         zMid,                &!< [in] z-coordinate at layer mid-depth
+         density,             &!< [in] density
+         potentialDensity      !< [in] potentialDensity
+
+      real (kind=RKIND), dimension(:,:), intent(in), optional :: &
+         nonhydrostaticPressure     !< Input: nonhydrostatic pressure correction
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         thermExpCoeff,       &!< [in] in situ thermal expansion coeff
+         salineContractCoeff   !< [in] in situ saline contraction coeff
+
+      real (kind=RKIND), dimension(:,:,:), intent(in) :: &
+         tracers               !< [in] array of active tracers
+
+      !-----------------------------------------------------------------
+      ! input/output variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         tend          !< [inout] accumulated velocity tendency
+
+      !-----------------------------------------------------------------
+      ! output variables
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< [out] error flag
+
+      !-----------------------------------------------------------------
+      ! local variables
+      !-----------------------------------------------------------------
+
+      integer ::           &
+         iEdge, iCell, k,  &! loop indices for edge, cell, vertical loops
+         cell1, cell2,     &! neighbor cell indices across edge
+         kMin, kMax         ! shallowest and deepest active layer
+
+      real (kind=RKIND) :: &
+         invdcEdge,        &! temporary for 1/dcEdge
+         pGrad,            &! vertically integrated pgrad
+         alpha, beta,      &! T,S expansion factors for Jacobian
+         Area,             &! Area for Jacobian calculation
+         zStar, zC, zGamma,&! z coordinate combination for Jacobian
+         rhoL, rhoR,       &! density neighbors for Jacobian
+         TL, TR,           &! temperature neighbors for Jacobian
+         SL, SR             ! salinity neighbors for Jacobian
+
+      real (kind=RKIND), dimension(:,:), allocatable :: &
+         JacobianDxDs,     &! Jacobian in density * Dx * DS
+         JacobianTz,       &! Jacobian associated with temperature
+         JacobianSz         ! Jacobian associated with salinity
+
+      real (kind=RKIND) :: &
+         meridSshGrad,     &! config_meridional_ssh_grad
+         zonalSshGrad       ! config_zonal_ssh_grad
+
+      ! End preamble
+      !-----------------------------------------------------------------
+      ! Begin code
+
+      !*** set error code and exit if turned off
+      !*** start timer if turned on
+
+      err = 0
+      if (pgradOff) return
+      call mpas_timer_start("pressure grad gpu")
+
+      meridSshGrad = config_meridional_ssh_grad
+      zonalSshGrad = config_zonal_ssh_grad
+
+      !*** Compute pGrad based on method selected
+      select case (pGradType)
+
+      case (pGradTypeSSHgrad)
+!NV!     !!! NOT EXECUTING !!!
+         write(*,*) "ocn_vel_pressure_grad_tend_gpu pGradTypeSSHgrad"
+         ! pressure for sea surface height = - g grad ssh
+
+         !$omp parallel
+         !$omp do schedule(runtime) &
+         !$omp    private(cell1, cell2, invdcEdge, k, kMin, kMax)
+         do iEdge=1,nEdgesOwned
+            cell1 = cellsOnEdge(1,iEdge)
+            cell2 = cellsOnEdge(2,iEdge)
+            invdcEdge = 1.0_RKIND / dcEdge(iEdge)
+            kMin = minLevelEdgeBot(iEdge)
+            kMax = maxLevelEdgeTop(iEdge)
+
+            do k=kMin,kMax
+               tend(k,iEdge) = tend(k,iEdge) - &
+                               edgeMask(k,iEdge)*invdcEdge* &
+                               (  gravity*(ssh(cell2) - ssh(cell1)) &
+                                + density0Inv*(  surfacePressure(cell2) &
+                                               - surfacePressure(cell1)) )
+            end do
+         end do
+         !$omp end do
+         !$omp end parallel
+
+      case (pGradTypePZmid)
+!NV!     !!! NOT EXECUTING !!!
+         write(*,*) "ocn_vel_pressure_grad_tend_gpu pGradTypePZmid"
+         ! pressure for generalized coordinates
+         ! -1/density_0 (grad p_k + density g grad z_k^{mid})
+
+         !$omp parallel
+         !$omp do schedule(runtime) &
+         !$omp    private(cell1, cell2, invdcEdge, k, kMin, kMax)
+         do iEdge=1,nEdgesOwned
+            cell1 = cellsOnEdge(1,iEdge)
+            cell2 = cellsOnEdge(2,iEdge)
+            invdcEdge = 1.0_RKIND / dcEdge(iEdge)
+            kMin = minLevelEdgeBot(iEdge)
+            kMax = maxLevelEdgeTop(iEdge)
+
+            do k=kMin,kMax
+               tend(k,iEdge) = tend(k,iEdge) + &
+                               edgeMask(k,iEdge)*invdcEdge*( &
+                               - density0Inv*(pressure(k,cell2) - &
+                                              pressure(k,cell1)) &
+                               - gdensity0Inv*0.5_RKIND* &
+                                 (density(k,cell1)+density(k,cell2))* &
+                                 (zMid(k,cell2)-zMid(k,cell1)))
+            end do
+         end do
+         !$omp end do
+         !$omp end parallel
+
+      case (pGradTypeMontPot)
+!NV!     !!! NOT EXECUTING !!!
+         write(*,*) "ocn_vel_pressure_grad_tend_gpu pGradTypeMontPot"
+         ! For pure isopycnal coordinates, this is just grad(M),
+         ! the gradient of Montgomery Potential
+
+         !$omp parallel
+         !$omp do schedule(runtime) &
+         !$omp    private(cell1, cell2, invdcEdge, k, kMin, kMax)
+         do iEdge=1,nEdgesOwned
+            cell1 = cellsOnEdge(1,iEdge)
+            cell2 = cellsOnEdge(2,iEdge)
+            invdcEdge = 1.0_RKIND / dcEdge(iEdge)
+            kMin = minLevelEdgeBot(iEdge)
+            kMax = maxLevelEdgeTop(iEdge)
+
+            do k=kMin,kMax
+               tend(k,iEdge) = tend(k,iEdge) + &
+                               edgeMask(k,iEdge)*invdcEdge* ( &
+                               - (montgomeryPotential(k,cell2) - &
+                                  montgomeryPotential(k,cell1)))
+            end do
+         end do
+         !$omp end do
+         !$omp end parallel
+
+      case (pGradTypeMontPotDens)
+!NV!     !!! NOT EXECUTING !!!
+         write(*,*) "ocn_vel_pressure_grad_tend_gpu pGradTypeMontPotDens"
+         ! This formulation has not been extensively tested and is not
+         ! supported at this time.
+
+         ! This is -grad(M)+p grad(1/rho)
+         ! Where rho is the potential density.
+         ! See Bleck (2002) equation 1, and last equation in Appendix A.
+
+         !$omp parallel
+         !$omp do schedule(runtime) &
+         !$omp    private(cell1, cell2, invdcEdge, k, kMin, kMax)
+         do iEdge=1,nEdgesOwned
+            cell1 = cellsOnEdge(1,iEdge)
+            cell2 = cellsOnEdge(2,iEdge)
+            invdcEdge = 1.0_RKIND / dcEdge(iEdge)
+            kMin = minLevelEdgeBot(iEdge)
+            kMax = maxLevelEdgeTop(iEdge)
+
+            do k=kMin,kMax
+               tend(k,iEdge) = tend(k,iEdge) + &
+                               edgeMask(k,iEdge)*invdcEdge*( &
+                               - (montgomeryPotential(k,cell2) - &
+                                  montgomeryPotential(k,cell1)) &
+                               +  0.5_RKIND*(pressure(k,cell1) + &
+                                             pressure(k,cell2))* &
+                              ( 1.0_RKIND/potentialDensity(k,cell2) &
+                              - 1.0_RKIND/potentialDensity(k,cell1)))
+            end do
+         end do
+         !$omp end do
+         !$omp end parallel
+
+      case (pGradTypeJacobDens)
+!NV!     !!! NOT EXECUTING !!!
+         write(*,*) "ocn_vel_pressure_grad_tend_gpu pGradTypeJacobDens"
+         allocate(JacobianDxDs(nVertLevels,nEdgesAll))
+
+         !$omp parallel
+         !$omp do schedule(runtime) &
+         !$omp    private(cell1, cell2, invdcEdge, k, kMin, kMax, pGrad, &
+         !$omp            Area, zStar, zC, zGamma, rhoL, rhoR)
+         do iEdge=1,nEdgesOwned
+            cell1 = cellsOnEdge(1,iEdge)
+            cell2 = cellsOnEdge(2,iEdge)
+            invdcEdge = 1.0_RKIND / dcEdge(iEdge)
+            kMin = minLevelEdgeBot(iEdge)
+            kMax = maxLevelEdgeTop(iEdge)
+
+            ! Compute the density-Jacobian in common_level form.
+            ! See Shchepetkin and McWilliams (2003) Ocean Modeling,
+            !   sections 2-4
+
+            JacobianDxDs(kMin,iEdge) = 0.0_RKIND
+
+            do k=kMin+1,kMax
+
+               ! eqn 2.7 in Shchepetkin and McWilliams (2003)
+               ! Note delta x was removed.  It must be an error in the
+               ! paper, ! as it makes the units incorrect.
+               Area = 0.5_RKIND*(zMid(k-1,cell1) - zMid(k,cell1) + &
+                                 zMid(k-1,cell2) - zMid(k,cell2))
+
+               ! eqn 2.8
+               zStar = ( zMid(k-1,cell2)*zMid(k-1,cell1) - &
+                         zMid(k  ,cell2)*zMid(k  ,cell1) )/ &
+                       ( zMid(k-1,cell2)-zMid(k  ,cell2) + &
+                         zMid(k-1,cell1)-zMid(k,cell1))
+
+               ! eqn 3.2
+               zC = 0.25_RKIND*(zMid(k,cell1) + zMid(k-1,cell1) + &
+                                zMid(k,cell2) + zMid(k-1,cell2))
+
+               ! eqn 4.1
+               zGamma = (1.0_RKIND - pGradLvlWgt)*zStar + pGradLvlWgt*zC
+
+               rhoL = (density(k  ,cell1)*(zMid(k-1,cell1)-zGamma) + &
+                       density(k-1,cell1)*(zGamma-zMid(k  ,cell1)))/ &
+                      (zMid(k-1,cell1) - zMid(k,cell1))
+               rhoR = (density(k  ,cell2)*(zMid(k-1,cell2)-zGamma) +  &
+                       density(k-1,cell2)*(zGamma-zMid(k  ,cell2)))/ &
+                      (zMid(k-1,cell2) - zMid(k,cell2))
+
+               ! eqn 2.6 in Shchepetkin and McWilliams (2003)
+               JacobianDxDs(k,iEdge) = Area * (rhoL - rhoR)
+            end do
+
+            ! In the top layer, use pressure for generalized coordinates
+            ! pGrad = -1/density_0 (grad p_k + density g grad z_k^{mid})
+            k = kMin
+            pGrad = edgeMask(k,iEdge)*invdcEdge*( &
+                    - density0Inv*(pressure(k,cell2) - &
+                                   pressure(k,cell1)) &
+                    - gdensity0Inv*0.5_RKIND* &
+                      (density(k,cell1)+density(k,cell2))* &
+                      (zMid(k,cell2)- zMid(k,cell1) ) )
+
+            tend(k,iEdge) = tend(k,iEdge) + pGrad
+
+            do k=kMin+1,kMax
+
+               ! note JacobianDxDs includes negative sign, so
+               ! pGrad is - g/rho_0 dP/dx
+
+               pGrad = pGrad + gdensity0Inv*JacobianDxDs(k,iEdge)*invdcEdge
+
+               tend(k,iEdge) = tend(k,iEdge) + pGrad
+
+            end do
+         end do
+         !$omp end do
+         !$omp end parallel
+
+        deallocate(JacobianDxDs)
+
+     case (pGradTypeJacobTS)
+
+         allocate(JacobianDxDs(nVertLevels,nEdgesAll), &
+                  JacobianTz(nVertLevels,nEdgesAll), &
+                  JacobianSz(nVertLevels,nEdgesAll))
+
+!$acc data present(cellsOnEdge,dcEdge,minLevelEdgeBot,maxLevelEdgeTop,edgeMask, &
+!$acc              JacobianTz,JacobianSz,zMid,tracers,pressure,density,tend, &
+!$acc              thermExpCoeff,salineContractCoeff) &
+!$acc      create(JacobianDxDs,JacobianTz,JacobianSz)
+
+         !$omp parallel
+         !$omp do schedule(runtime) &
+         !$omp private(cell1, cell2, invdcEdge, k, kMin, kMax, alpha, beta, &
+         !$omp         TL, TR, SL, SR, Area, zStar, zC, zGamma, pGrad)
+!$acc parallel
+!$acc loop gang worker private(cell1,cell2,invdcEdge,kMin,kMax,pGrad,alpha,beta)
+         do iEdge=1,nEdgesOwned
+            cell1 = cellsOnEdge(1,iEdge)
+            cell2 = cellsOnEdge(2,iEdge)
+            invdcEdge = 1.0_RKIND / dcEdge(iEdge)
+            kMin = minLevelEdgeBot(iEdge)
+            kMax = maxLevelEdgeTop(iEdge)
+
+            ! compute J(T,z) and J(S,z)
+            ! in Shchepetkin and McWilliams (2003) (7.16)
+
+            JacobianTz(kMin,iEdge) = 0.0_RKIND
+            JacobianSz(kMin,iEdge) = 0.0_RKIND
+
+!$acc loop vector private(Area,zStar,zC,zGamma,TL,TR,SL,SR)
+            do k=kMin+1,kMax
+               ! eqn 2.7 in Shchepetkin and McWilliams (2003)
+               ! Note delta x was removed.  It must be an error in the
+               ! paper, ! as it makes the units incorrect.
+               Area = 0.5_RKIND*(zMid(k-1,cell1) - zMid(k,cell1) + &
+                                 zMid(k-1,cell2) - zMid(k,cell2))
+               ! eqn 2.8
+               zStar = ( zMid(k-1,cell2)*zMid(k-1,cell1) - &
+                         zMid(k  ,cell2)*zMid(k  ,cell1) )/ &
+                       ( zMid(k-1,cell2)-zMid(k  ,cell2) + &
+                         zMid(k-1,cell1)-zMid(k,cell1))
+               ! eqn 3.2
+               zC = 0.25_RKIND*(zMid(k,cell1) + zMid(k-1,cell1) + &
+                                zMid(k,cell2) + zMid(k-1,cell2))
+               ! eqn 4.1
+               zGamma = (1.0_RKIND - pGradLvlWgt)*zStar + pGradLvlWgt*zC
+
+               TL = (tracers(indxT,k  ,cell1)*(zMid(k-1,cell1)-zGamma) + &
+                     tracers(indxT,k-1,cell1)*(zGamma-zMid(k  ,cell1)))/ &
+                    (zMid(k-1,cell1) - zMid(k,cell1))
+               TR = (tracers(indxT,k  ,cell2)*(zMid(k-1,cell2)-zGamma) +  &
+                     tracers(indxT,k-1,cell2)*(zGamma-zMid(k  ,cell2)))/ &
+                    (zMid(k-1,cell2) - zMid(k,cell2))
+
+               SL = (tracers(indxS,k  ,cell1)*(zMid(k-1,cell1)-zGamma) + &
+                     tracers(indxS,k-1,cell1)*(zGamma-zMid(k  ,cell1)))/ &
+                    (zMid(k-1,cell1) - zMid(k,cell1))
+               SR = (tracers(indxS,k  ,cell2)*(zMid(k-1,cell2)-zGamma) +  &
+                     tracers(indxS,k-1,cell2)*(zGamma-zMid(k  ,cell2)))/ &
+                    (zMid(k-1,cell2) - zMid(k,cell2))
+
+               ! eqn 2.6 in Shchepetkin and McWilliams (2003)
+               JacobianTz(k,iEdge) = Area*(TL - TR)
+               JacobianSz(k,iEdge) = Area*(SL - SR)
+            end do
+
+            ! In top layer, use pressure for generalized coordinates
+            ! pGrad = -1/density_0 (grad p_k + density g grad z_k^{mid})
+
+            pGrad = edgeMask(kMin,iEdge)*invdcEdge*( &
+                    - density0Inv*(pressure(kMin,cell2) - &
+                                   pressure(kMin,cell1)) &
+                    - gdensity0Inv*0.5_RKIND* &
+                      (density(kMin,cell1)+density(kMin,cell2))* &
+                      (zMid(kMin,cell2)- zMid(kMin,cell1) ) )
+
+            tend(kMin,iEdge) = tend(kMin,iEdge) + pGrad
+
+!$acc loop seq
+            do k=kMin+1,kMax
+               ! Average alpha and beta over four data points of the Jacobian cell.
+               ! Note that thermExpCoeff and salineContractCoeff include a 1/density factor,
+               ! so must multiply by density here.
+               alpha = 0.25_RKIND*( &
+                       density(k  ,cell1)*thermExpCoeff (k  ,cell1) &
+                     + density(k-1,cell1)*thermExpCoeff (k-1,cell1) &
+                     + density(k  ,cell2)*thermExpCoeff (k  ,cell2) &
+                     + density(k-1,cell2)*thermExpCoeff (k-1,cell2) )
+               beta  = 0.25_RKIND*( &
+                       density(k  ,cell1)*salineContractCoeff(k  ,cell1) &
+                     + density(k-1,cell1)*salineContractCoeff(k-1,cell1) &
+                     + density(k  ,cell2)*salineContractCoeff(k  ,cell2) &
+                     + density(k-1,cell2)*salineContractCoeff(k-1,cell2) )
+
+               ! Shchepetkin and McWilliams (2003) (7.16)
+               JacobianDxDs(k,iEdge) = -alpha*JacobianTz(k,iEdge) + &
+                                         beta*JacobianSz(k,iEdge)
+
+               ! note JacobianDxDs includes negative sign, so
+               ! pGrad is - g/rho_0 dP/dx
+
+               pGrad = pGrad + gdensity0Inv * JacobianDxDs(k,iEdge) * invdcEdge
+
+               tend(k,iEdge) = tend(k,iEdge) + pGrad
+
+            end do
+         end do
+!$acc end parallel
+         !$omp end do
+         !$omp end parallel
+
+!$acc end data
+
+         deallocate(JacobianDxDs, JacobianTz, JacobianSz)
+
+      case (pGradTypeConstForced)
+!NV!     !!! NOT EXECUTING !!!
+         write(*,*) "ocn_vel_pressure_grad_tend_gpu pGradTypeConstForced"
+         !$omp parallel
+         !$omp do schedule(runtime) &
+         !$omp    private(pGrad, k)
+         do iEdge=1,nEdgesOwned
+            ! compute the pressure gradient to be applied at the edge
+            pGrad = zonalSshGrad * cos(angleEdge(iEdge)) + meridSshGrad * sin(angleEdge(iEdge))
+
+            do k=minLevelEdgeBot(iEdge),maxLevelEdgeTop(iEdge)
+               tend(k,iEdge) = tend(k,iEdge) - gravity * edgeMask(k,iEdge) * pGrad
+            end do
+         end do
+         !$omp end do
+         !$omp end parallel
+
+      case default
+
+         !*** error already trapped during init
+
+      end select ! pGradType
+
+      if(config_enable_nonhydrostatic_mode) then
+!NV!     !!! NOT EXECUTING !!!
+         write(*,*) "ocn_vel_pressure_grad_tend_gpu config_enable_nonhydrostatic_mode"
+         !$omp parallel
+         !$omp do schedule(runtime) private(cell1, cell2, invdcEdge, k)
+         do iEdge=1,nEdgesOwned
+            cell1 = cellsOnEdge(1,iEdge)
+            cell2 = cellsOnEdge(2,iEdge)
+            invdcEdge = 1.0_RKIND / dcEdge(iEdge)
+            
+            do k=1,maxLevelEdgeTop(iEdge)
+               tend(k,iEdge) = tend(k,iEdge) + edgeMask(k,iEdge) * invdcEdge * ( &
+                 - ( nonhydrostaticPressure(k,cell2) - nonhydrostaticPressure(k,cell1) ) )
+            end do 
+         end do
+         !$omp end do
+         !$omp end parallel
+      endif
+
+      call mpas_timer_stop("pressure grad gpu")
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_vel_pressure_grad_tend_gpu!}}}
 
 !***********************************************************************
 !

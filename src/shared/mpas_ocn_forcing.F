@@ -127,13 +127,15 @@ contains
 
         call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
 
-        call mpas_pool_get_array(meshPool, 'minLevelCell', minLevelCell)
-        call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
+        call mpas_pool_get_array_gpu(meshPool, 'minLevelCell', minLevelCell)
+        call mpas_pool_get_array_gpu(meshPool, 'maxLevelCell', maxLevelCell)
 
-        call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, timeLevel)
+        call mpas_pool_get_array_gpu(statePool, 'layerThickness', layerThickness, timeLevel)
 
-        call mpas_pool_get_array(forcingPool, 'fractionAbsorbed', fractionAbsorbed)
-        call mpas_pool_get_array(forcingPool, 'fractionAbsorbedRunoff', fractionAbsorbedRunoff)
+        call mpas_pool_get_array_gpu(forcingPool, 'fractionAbsorbed', fractionAbsorbed)
+        call mpas_pool_get_array_gpu(forcingPool, 'fractionAbsorbedRunoff', fractionAbsorbedRunoff)
+!$acc update host(minLevelCell,maxLevelCell,layerThickness,fractionAbsorbed,fractionAbsorbedRunoff,&
+!$acc             sfcFlxAttCoeff,surfaceFluxAttenuationCoefficientRunoff)
 
         nCells = nCellsArray( 2 )
 
@@ -166,6 +168,7 @@ contains
               transmissionCoeffTop = transmissionCoeffBot
            end do
         end do
+!$acc update device(fractionAbsorbed,fractionAbsorbedRunoff)
 
     end subroutine ocn_forcing_build_fraction_absorbed_array!}}}
 

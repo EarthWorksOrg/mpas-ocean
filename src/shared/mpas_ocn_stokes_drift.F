@@ -59,6 +59,7 @@ module ocn_stokes_drift
    !--------------------------------------------------------------------
 
    real (kind=RKIND), dimension(:), allocatable :: stokesDriftWavenumbers
+!$acc declare create(stokesDriftWavenumbers)
 
 
 !***********************************************************************
@@ -525,6 +526,7 @@ contains
            err = 1
 
       end select
+!$acc update device(stokesDriftWavenumbers)
 
    !--------------------------------------------------------------------
 

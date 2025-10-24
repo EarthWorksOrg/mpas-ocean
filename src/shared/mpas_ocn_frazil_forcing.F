@@ -49,7 +49,9 @@ module ocn_frazil_forcing
 
    public :: ocn_frazil_forcing_build_arrays, &
              ocn_frazil_forcing_tracers, &
+             ocn_frazil_forcing_tracers_gpu, &
              ocn_frazil_forcing_layer_thickness, &
+             ocn_frazil_forcing_layer_thickness_gpu, &
              ocn_frazil_forcing_init
 
    !--------------------------------------------------------------------
@@ -123,6 +125,52 @@ contains
 
    end subroutine ocn_frazil_forcing_tracers!}}}
 
+   subroutine ocn_frazil_forcing_tracers_gpu(meshPool, tracersPool, groupName, forcingPool, tracersTend, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+      character (len=*) :: groupName !< Input: Name of tracer group
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(in) :: meshPool !< Input/Output: mesh information
+      type (mpas_pool_type), intent(inout) :: tracersPool !< Input/Output: tracer tendency pool
+      type (mpas_pool_type), intent(inout) :: forcingPool  !< Input/Output: forcing pool holding frazil-induced tendencies
+      real (kind=RKIND), dimension(:,:,:), intent(inout) ::  tracersTend
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: Error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      err = 0
+
+      if ( .not. frazilFormationOn ) return
+
+      call mpas_timer_start("tracer frazil gpu")
+
+      if ( trim(groupName) == 'activeTracers' ) then
+         call ocn_frazil_forcing_active_tracers_gpu(meshPool, tracersPool, forcingPool, tracersTend, err)
+      end if
+
+      call mpas_timer_stop("tracer frazil gpu")
+
+   end subroutine ocn_frazil_forcing_tracers_gpu!}}}
+
 !***********************************************************************
 !
 !  routine ocn_frazil_forcing_layer_thickness
@@ -180,33 +228,87 @@ contains
       nCells = nCellsHalo( 1 )
 
       ! Build surface fluxes at cell centers
-#ifdef MPAS_OPENACC
-      !$acc enter data copyin(frazilLayerThicknessTendency)
-
-      !$acc parallel loop &
-      !$acc     present(layerThicknessTend, minLevelCell, maxLevelCell, frazilLayerThicknessTendency) &
-      !$acc     private(k)
-#else
       !$omp parallel
       !$omp do schedule(runtime) private(k)
-#endif
       do iCell = 1, nCells
         do k = minLevelCell(iCell), maxLevelCell(iCell)
           layerThicknessTend(k,iCell) = layerThicknessTend(k,iCell) + frazilLayerThicknessTendency(k,iCell)
         end do
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
-
-#ifdef MPAS_OPENACC
-      !$acc exit data delete(frazilLayerThicknessTendency)
-#endif
 
       call mpas_timer_stop("frazil thickness tendency")
 
    end subroutine ocn_frazil_forcing_layer_thickness!}}}
+
+   subroutine ocn_frazil_forcing_layer_thickness_gpu(forcingPool, layerThicknessTend, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(in) :: forcingPool !< Input: Forcing information
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+      real (kind=RKIND), intent(inout), dimension(:,:) :: layerThicknessTend
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: Error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iCell, k, nCells
+      real (kind=RKIND), dimension(:,:), pointer :: frazilLayerThicknessTendency
+
+      err = 0
+
+      if ( .not. frazilFormationOn ) return
+
+      call mpas_timer_start("frazil thickness tendency gpu")
+
+      call mpas_pool_get_array_gpu(forcingPool, 'frazilLayerThicknessTendency', frazilLayerThicknessTendency)
+
+      ! frazil fields are needed only over 0 and 1 halos
+      nCells = nCellsHalo( 1 )
+
+!$acc data present(minLevelCell,maxLevelCell,&
+!$acc              layerThicknessTend,frazilLayerThicknessTendency)
+
+      ! Build surface fluxes at cell centers
+      !$omp parallel
+      !$omp do schedule(runtime) private(k)
+!$acc parallel
+!$acc loop gang
+      do iCell = 1, nCells
+!$acc loop vector
+        do k = minLevelCell(iCell), maxLevelCell(iCell)
+          layerThicknessTend(k,iCell) = layerThicknessTend(k,iCell) + frazilLayerThicknessTendency(k,iCell)
+        end do
+      end do
+!$acc end parallel
+      !$omp end do
+      !$omp end parallel
+
+!$acc end data
+
+      call mpas_timer_stop("frazil thickness tendency gpu")
+
+   end subroutine ocn_frazil_forcing_layer_thickness_gpu!}}}
 
 
 !***********************************************************************
@@ -299,6 +401,92 @@ contains
       !$omp end parallel
 
    end subroutine ocn_frazil_forcing_active_tracers!}}}
+
+   subroutine ocn_frazil_forcing_active_tracers_gpu(meshPool, tracersPool, forcingPool, activeTracersTend, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(in) :: meshPool !< Input: mesh information
+      type (mpas_pool_type), intent(inout) :: tracersPool !< Input: tracer tendency pool
+      type (mpas_pool_type), intent(inout) :: forcingPool !< Input: Forcing information
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+      real (kind=RKIND), dimension(:,:,:), intent(inout) :: activeTracersTend
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: Error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iCell, k, nCells
+      integer, pointer :: indexTemperaturePtr
+      integer, pointer :: indexSalinityPtr
+      integer :: indexTemperature
+      integer :: indexSalinity
+      integer, pointer, dimension(:) :: nCellsArray
+      integer, pointer, dimension(:) :: minLevelCell, maxLevelCell
+
+      real (kind=RKIND), dimension(:,:), pointer :: frazilTemperatureTendency
+      real (kind=RKIND), dimension(:,:), pointer :: frazilSalinityTendency
+
+      err = 0
+
+      if ( .not. frazilFormationOn ) return
+
+      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+      call mpas_pool_get_dimension(tracersPool, 'index_temperature', &
+                                                 indexTemperaturePtr)
+      call mpas_pool_get_dimension(tracersPool, 'index_salinity', &
+                                                 indexSalinityPtr)
+      indexTemperature = indexTemperaturePtr
+      indexSalinity    = indexSalinityPtr
+
+      call mpas_pool_get_array_gpu(meshPool, 'minLevelCell', minLevelCell)
+      call mpas_pool_get_array_gpu(meshPool, 'maxLevelCell', maxLevelCell)
+      call mpas_pool_get_array_gpu(forcingPool, 'frazilTemperatureTendency', frazilTemperatureTendency)
+      call mpas_pool_get_array_gpu(forcingPool, 'frazilSalinityTendency', frazilSalinityTendency)
+
+      ! frazil fields are needed only over 0 and 1 halos
+      nCells = nCellsArray( 2 )
+
+!$acc data present(minLevelCell,maxLevelCell,activeTracersTend,frazilTemperatureTendency,frazilSalinityTendency)
+
+      ! add to surface fluxes at cell centers
+      !$omp parallel
+      !$omp do schedule(runtime) private(k)
+!$acc parallel
+!$acc loop gang
+      do iCell = 1, nCells
+!$acc loop vector
+        do k = minLevelCell(iCell), maxLevelCell(iCell)
+          activeTracersTend(indexTemperature,k,iCell) = activeTracersTend(indexTemperature,k,iCell) &
+                                                      + frazilTemperatureTendency(k,iCell)
+          activeTracersTend(indexSalinity,k,iCell) = activeTracersTend(indexSalinity,k,iCell) + frazilSalinityTendency(k,iCell)
+        end do
+      end do
+!$acc end parallel
+      !$omp end do
+      !$omp end parallel
+
+!$acc end data
+
+   end subroutine ocn_frazil_forcing_active_tracers_gpu!}}}
 
 !***********************************************************************
 !
@@ -416,25 +604,31 @@ contains
       indexSalinity    = indexSalinityPtr
 
       ! get mesh information
-      call mpas_pool_get_array(meshPool, 'minLevelCell', minLevelCell)
-      call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
+      call mpas_pool_get_array_gpu(meshPool, 'minLevelCell', minLevelCell)
+      call mpas_pool_get_array_gpu(meshPool, 'maxLevelCell', maxLevelCell)
 
       ! get arrays
       ! note: state information is used to produce tendencies, so always grab "new" time level
-      call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, 1)
-      call mpas_pool_get_array(statePool, 'accumulatedFrazilIceMass', accumulatedFrazilIceMassNew, 2)
-      call mpas_pool_get_array(statePool, 'accumulatedFrazilIceMass', accumulatedFrazilIceMassOld, 1)
-      call mpas_pool_get_array(statePool, 'accumulatedFrazilIceSalinity', accumulatedFrazilIceSalinityNew, 2)
-      call mpas_pool_get_array(statePool, 'accumulatedFrazilIceSalinity', accumulatedFrazilIceSalinityOld, 1)
-      call mpas_pool_get_array(statePool, 'accumulatedLandIceFrazilMass', accumulatedLandIceFrazilMassNew, 2)
-      call mpas_pool_get_array(statePool, 'accumulatedLandIceFrazilMass', accumulatedLandIceFrazilMassOld, 1)
-      call mpas_pool_get_array(statePool, 'ssh', ssh, 1)
-      call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, 1)
-      call mpas_pool_get_array(forcingPool, 'frazilTemperatureTendency', frazilTemperatureTendency)
-      call mpas_pool_get_array(forcingPool, 'frazilSalinityTendency', frazilSalinityTendency)
-      call mpas_pool_get_array(forcingPool, 'frazilLayerThicknessTendency', frazilLayerThicknessTendency)
-      call mpas_pool_get_array(forcingPool, 'frazilSurfacePressure', frazilSurfacePressure)
-      call mpas_pool_get_array(forcingPool, 'landIceMask', landIceMask)
+      call mpas_pool_get_array_gpu(statePool, 'layerThickness', layerThickness, 1)
+      call mpas_pool_get_array_gpu(statePool, 'accumulatedFrazilIceMass', accumulatedFrazilIceMassNew, 2)
+      call mpas_pool_get_array_gpu(statePool, 'accumulatedFrazilIceMass', accumulatedFrazilIceMassOld, 1)
+      call mpas_pool_get_array_gpu(statePool, 'accumulatedFrazilIceSalinity', accumulatedFrazilIceSalinityNew, 2)
+      call mpas_pool_get_array_gpu(statePool, 'accumulatedFrazilIceSalinity', accumulatedFrazilIceSalinityOld, 1)
+      call mpas_pool_get_array_gpu(statePool, 'accumulatedLandIceFrazilMass', accumulatedLandIceFrazilMassNew, 2)
+      call mpas_pool_get_array_gpu(statePool, 'accumulatedLandIceFrazilMass', accumulatedLandIceFrazilMassOld, 1)
+      call mpas_pool_get_array_gpu(statePool, 'ssh', ssh, 1)
+      call mpas_pool_get_array_gpu(tracersPool, 'activeTracers', activeTracers, 1)
+      call mpas_pool_get_array_gpu(forcingPool, 'frazilTemperatureTendency', frazilTemperatureTendency)
+      call mpas_pool_get_array_gpu(forcingPool, 'frazilSalinityTendency', frazilSalinityTendency)
+      call mpas_pool_get_array_gpu(forcingPool, 'frazilLayerThicknessTendency', frazilLayerThicknessTendency)
+      call mpas_pool_get_array_gpu(forcingPool, 'frazilSurfacePressure', frazilSurfacePressure)
+      call mpas_pool_get_array_gpu(forcingPool, 'landIceMask', landIceMask)
+!$acc update host(minLevelCell,maxLevelCell,&
+!$acc             layerThickness,accumulatedFrazilIceMassNew,accumulatedFrazilIceMassOld,accumulatedFrazilIceSalinityNew,&
+!$acc             accumulatedFrazilIceSalinityOld,accumulatedLandIceFrazilMassNew,accumulatedLandIceFrazilMassOld,ssh,&
+!$acc             activeTracers,frazilTemperatureTendency,frazilSalinityTendency,frazilLayerThicknessTendency,&
+!$acc             frazilSurfacePressure,landIceMask,&
+!$acc             zMid,pressure,density)
 
       ! get time step in units of seconds
       timeStep = mpas_get_clock_timestep(domain % clock, ierr=err)
@@ -607,6 +801,7 @@ contains
            ! for freshwater budgets
            accumulatedLandIceFrazilMassNew(iCell) = accumulatedLandIceFrazilMassOld(iCell) &
                                                   + sumNewFrazilIceThickness * config_frazil_ice_density
+!$acc update device(accumulatedLandIceFrazilMassNew)
         end if
 
       enddo   ! do iCell = 1, nCells
@@ -621,8 +816,11 @@ contains
         end do
         !$omp end do
         !$omp end parallel
+!$acc update device(frazilSurfacePressure)
       end if
 
+!$acc update device(frazilTemperatureTendency,frazilSalinityTendency,frazilLayerThicknessTendency,accumulatedFrazilIceMassNew,&
+!$acc               accumulatedFrazilIceSalinityNew)
       call mpas_timer_stop("frazil")
 
    end subroutine ocn_frazil_forcing_build_arrays!}}}

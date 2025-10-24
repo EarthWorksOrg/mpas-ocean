@@ -48,6 +48,7 @@ module ocn_tracer_hmix
    !--------------------------------------------------------------------
 
    public :: ocn_tracer_hmix_tend, &
+             ocn_tracer_hmix_tend_gpu, &
              ocn_tracer_hmix_init
 
    !--------------------------------------------------------------------
@@ -162,6 +163,91 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_tracer_hmix_tend!}}}
+
+   subroutine ocn_tracer_hmix_tend_gpu(meshPool, layerThickEdgeMean, layerThickness, zMid, tracers, &
+                                   RediKappa, slopeTriadUp, slopeTriadDown, dt, isActiveTracer,          &
+                                   RediKappaScaling, rediLimiterCount, tend, err)!{{{
+
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(in) :: meshPool !< Input: Mesh information
+
+      real (kind=RKIND), dimension(:), intent(in), optional :: &
+         RediKappa
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         layerThickEdgeMean, &!< Input: mean thickness at edge
+         layerThickness,     &!< Input: thickness at centers
+         zMid                 !< Input: Z coordinate at the center of a cell
+      real (kind=RKIND), dimension(:,:), intent(in), optional :: &
+         RediKappaScaling        !< Input: vertical structure of GM/Redi limiter
+
+      real (kind=RKIND), dimension(:,:,:), intent(in) :: &
+        slopeTriadUp, slopeTriadDown, &
+        tracers !< Input: tracer quantities
+
+      real (kind=RKIND), intent(in) :: dt
+
+      integer, dimension(:,:), intent(inout), optional :: rediLimiterCount
+
+      logical,intent(in) :: isActiveTracer
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:,:), intent(inout) :: &
+         tend
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: err1, err2
+
+      !-----------------------------------------------------------------
+      !
+      ! call relevant routines for computing tendencies
+      ! note that the user can choose multiple options and the
+      !   tendencies will be added together
+      !
+      !-----------------------------------------------------------------
+
+      if(.not.tracerHmixOn) return
+
+      call mpas_timer_start("tracer hmix gpu")
+
+      call ocn_tracer_hmix_del2_tend_gpu(meshPool, layerThickEdgeMean, tracers, tend, err1)
+      call ocn_tracer_hmix_del4_tend_gpu(meshPool, layerThickEdgeMean, tracers, tend, err2)
+      if (config_use_Redi) then
+!NV!    !!! EXECUTING !!!
+        call ocn_tracer_hmix_Redi_tend_gpu(meshPool, layerThickness, layerThickEdgeMean, zMid, tracers, &
+                                     RediKappa, dt, isActiveTracer,        &
+                                     slopeTriadUp, slopeTriadDown, &
+                                     RediKappaScaling, rediLimiterCount, tend, err1)
+      endif
+      err = ior(err1, err2)
+      call mpas_timer_stop("tracer hmix gpu")
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_tracer_hmix_tend_gpu!}}}
 
 !***********************************************************************
 !

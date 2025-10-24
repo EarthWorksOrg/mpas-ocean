@@ -45,6 +45,7 @@ module ocn_thick_ale
    !--------------------------------------------------------------------
 
    public :: ocn_ALE_thickness, &
+             ocn_ALE_thickness_gpu, &
              ocn_thick_ale_init
 
    !--------------------------------------------------------------------
@@ -145,12 +146,6 @@ contains
 
       err = 0
 
-      !TEMP: acc directives temporarily disabled here for bit-for-bit
-      !      validation - will enable these on subsequent PR
-      !      must also update host since ssh data on device - this
-      !      will also be removed
-      !$acc update host (ssh)
-
       ! Retrieve or allocate needed variables
 
       call mpas_pool_get_array(verticalMeshPool, 'restingThickness', &
@@ -167,17 +162,9 @@ contains
       ! restingThickness_times_weights
       case (ALEthickProportionThickTimesWgts)
 
-#ifdef MPAS_OPENACC
-         !xacc parallel loop &
-         !xacc    present(ALE_thickness, SSH, restingThickness, &
-         !xacc            minLevelCell, maxLevelCell, &
-         !xacc            vertCoordMovementWeights) &
-         !xacc    private(k, kMin, kMax, thicknessSum)
-#else
          !$omp parallel
          !$omp do schedule(runtime) &
          !$omp    private(k, kMin, kMax, thicknessSum)
-#endif
          do iCell = 1, nCells
             kMax = maxLevelCell(iCell)
             kMin = minLevelCell(iCell)
@@ -199,25 +186,15 @@ contains
                      restingThickness(k,iCell) )/thicknessSum
             end do
          enddo
-#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-#endif
    
       ! weights_only
       case (ALEthickProportionWgtsOnly)
 
-#ifdef MPAS_OPENACC
-         !xacc parallel loop &
-         !xacc    present(ALE_thickness, restingThickness, ssh, &
-         !xacc            vertCoordMovementWeights, &
-         !xacc            minLevelCell, maxLevelCell) &
-         !xacc    private(k, kMin, kMax, weightSum)
-#else
          !$omp parallel
          !$omp do schedule(runtime) &
          !$omp    private(k, kMin, kMax, weightSum)
-#endif
          do iCell = 1, nCells
             kMax = maxLevelCell(iCell)
             kMin = minLevelCell(iCell)
@@ -240,10 +217,8 @@ contains
                             vertCoordMovementWeights(k)/weightSum
             end do
          enddo
-#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-#endif
 
       case default
          ! Checked on init
@@ -252,15 +227,8 @@ contains
       ! thickness filtering active
       if (present(newHighFreqThickness)) then
 
-#ifdef MPAS_OPENACC
-         !xacc parallel loop &
-         !xacc    present(ALE_thickness, newHighFreqThickness, &
-         !xacc            minLevelCell, maxLevelCell) &
-         !xacc    private(k, kMin, kMax)
-#else
          !$omp parallel
          !$omp do schedule(runtime) private(k, kMin, kMax)
-#endif
          do iCell = 1, nCells
             kMax = maxLevelCell(iCell)
             kMin = minLevelCell(iCell)
@@ -270,10 +238,8 @@ contains
                                       + newHighFreqThickness(k,iCell)
             enddo
          enddo
-#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-#endif
 
       endif
 
@@ -285,24 +251,12 @@ contains
          allocate(prelim_ALE_thickness  (nVertLevels), &
                   min_ALE_thickness_down(nVertLevels), &
                   min_ALE_thickness_up  (nVertLevels))
-         !xacc enter data create(prelim_ALE_thickness, &
-         !xacc                   min_ALE_thickness_down, &
-         !xacc                   min_ALE_thickness_up)
 
-#ifdef MPAS_OPENACC
-         !xacc parallel loop &
-         !xacc    present(ALE_thickness, restingThickness, &
-         !xacc            minLevelCell, maxLevelCell) &
-         !xacc    private(k, kMin, kMax, remainder, newThickness, &
-         !xacc            prelim_ALE_thickness, &
-         !xacc            min_ALE_thickness_down, min_ALE_thickness_up)
-#else
          !$omp parallel
          !$omp do schedule(runtime) &
          !$omp    private(k, kMin, kMax, remainder, newThickness, &
          !$omp            prelim_ALE_thickness, &
          !$omp            min_ALE_thickness_down, min_ALE_thickness_up)
-#endif
          do iCell = 1, nCells
             kMax = maxLevelCell(iCell)
             kMin = minLevelCell(iCell)
@@ -346,29 +300,255 @@ contains
 
             enddo
          enddo
-#ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
-#endif
 
-         !xacc exit data delete(prelim_ALE_thickness, &
-         !xacc                  min_ALE_thickness_down, &
-         !xacc                  min_ALE_thickness_up)
          deallocate(prelim_ALE_thickness, &
                     min_ALE_thickness_down, &
                     min_ALE_thickness_up)
 
       endif ! useMinMaxThick
 
-      !xacc exit data delete(restingThickness) 
-
-      !TEMP: move result to device - this will be unnecessary once
-      !      acc directives enabled
-      !$acc update device(ALE_thickness)
-
    !--------------------------------------------------------------------
 
    end subroutine ocn_ALE_thickness!}}}
+
+   subroutine ocn_ALE_thickness_gpu(verticalMeshPool, SSH, ALE_thickness, &
+                                err, newHighFreqThickness)!{{{
+
+      !-----------------------------------------------------------------
+      ! input variables
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: &
+         verticalMeshPool     !< [in] vertical mesh information
+
+      real (kind=RKIND), dimension(:), intent(in) :: &
+         SSH                  !< [in] sea surface height
+
+      real (kind=RKIND), dimension(:,:), intent(in), optional :: &
+         newHighFreqThickness !< [in] high freq thickness alters ALE thickness.
+
+      !-----------------------------------------------------------------
+      ! output variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(out) :: &
+         ALE_thickness            !< [out] desired thickness at new time
+
+      integer, intent(out) :: err !< [out] error flag
+
+      !-----------------------------------------------------------------
+      ! local variables
+      !-----------------------------------------------------------------
+
+      integer :: &
+         iCell, k,    &! loop indices for cells, depth
+         kMax, kMin,  &! indices for min, max active levels
+         nCells        ! number of cells
+
+      real (kind=RKIND) :: &
+         weightSum,    &! sum of weights in vertical
+         thicknessSum, &! total thickness
+         remainder,    &! track remainder in mix/max alteration
+         newThickness   ! temp used during min/max adjustment
+
+      real (kind=RKIND), dimension(:), allocatable :: &
+         prelim_ALE_thickness,   & ! ALE thickness at new time
+         min_ALE_thickness_down, & ! thickness alteration in min/max adj
+         min_ALE_thickness_up      ! thickness alteration in min/max adj
+
+      real (kind=RKIND), dimension(:,:), pointer :: &
+         restingThickness   ! Layer thickness when the ocean is at rest
+                            ! i.e. without SSH or internal perturbations.
+
+      ! End preamble
+      !-----------------------------------------------------------------
+      ! Begin code
+
+      err = 0
+
+      ! Retrieve or allocate needed variables
+
+      call mpas_pool_get_array_gpu(verticalMeshPool, 'restingThickness', &
+                                                  restingThickness)
+      !xacc enter data copyin(restingThickness) 
+
+      nCells = nCellsHalo(1)
+
+!$acc data present(maxLevelCell,minLevelCell,&
+!$acc              vertCoordMovementWeights,restingThickness,ALE_thickness,SSH)
+
+      !
+      ! ALE thickness alteration due to SSH (z-star)
+      !
+      select case(ALEthickProportionality)
+
+      ! restingThickness_times_weights
+      case (ALEthickProportionThickTimesWgts)
+
+         !$omp parallel
+         !$omp do schedule(runtime) &
+         !$omp    private(k, kMin, kMax, thicknessSum)
+!$acc parallel
+!$acc loop gang private(kMax,kMin,thicknessSum)
+         do iCell = 1, nCells
+            kMax = maxLevelCell(iCell)
+            kMin = minLevelCell(iCell)
+   
+            thicknessSum = 1e-14_RKIND
+!$acc loop seq
+            do k = kMin, kMax
+               thicknessSum = thicknessSum &
+                            + vertCoordMovementWeights(k) &
+                            * restingThickness(k,iCell)
+            end do
+   
+            ! Note that restingThickness is nonzero, and remaining
+            ! terms are perturbations about zero.
+            ! This is equation 4 and 6 in Petersen et al 2015,
+            ! but with eqn 6
+!$acc loop vector
+            do k = kMin, kMax
+               ALE_thickness(k,iCell) = restingThickness(k,iCell) &
+                  + (SSH(iCell)*vertCoordMovementWeights(k)* &
+                     restingThickness(k,iCell) )/thicknessSum
+            end do
+         enddo
+!$acc end parallel
+         !$omp end do
+         !$omp end parallel
+   
+      ! weights_only
+      case (ALEthickProportionWgtsOnly)
+!NV!     !!! NOT EXECUTING !!!
+         write(*,*) "ocn_ALE_thickness_gpu ALEthickProportionWgtsOnly"
+
+         !$omp parallel
+         !$omp do schedule(runtime) &
+         !$omp    private(k, kMin, kMax, weightSum)
+         do iCell = 1, nCells
+            kMax = maxLevelCell(iCell)
+            kMin = minLevelCell(iCell)
+   
+            weightSum = 1e-14_RKIND
+            do k = kMin, kMax
+               weightSum = weightSum + vertCoordMovementWeights(k) 
+            end do
+   
+            do k = kMin, kMax
+               ! Using this, we must require that the
+               ! sum(restingThickness(k, iCell))
+               ! summed over k is equal to bottomDepth.
+               ! This is equation 4 and 6 in Petersen et al 2015,
+               ! but with eqn 6 altered so only the W_k weights
+               ! are used. The resting thickness shown in eqn 6 is
+               ! not included here.
+               ALE_thickness(k,iCell) = restingThickness(k,iCell) &
+                                      + ssh(iCell)* &
+                            vertCoordMovementWeights(k)/weightSum
+            end do
+         enddo
+         !$omp end do
+         !$omp end parallel
+
+      case default
+         ! Checked on init
+      end select ! ALE thickness proportionality
+
+      ! thickness filtering active
+      if (present(newHighFreqThickness)) then
+         !$omp parallel
+         !$omp do schedule(runtime) private(k, kMin, kMax)
+!$acc parallel
+!$acc loop gang private(kMax,kMin)
+         do iCell = 1, nCells
+            kMax = maxLevelCell(iCell)
+            kMin = minLevelCell(iCell)
+!$acc loop vector
+            do k=kMin,kMax
+               ALE_thickness(k,iCell) = ALE_thickness(k,iCell) &
+                                      + newHighFreqThickness(k,iCell)
+            enddo
+         enddo
+!$acc end parallel
+         !$omp end do
+         !$omp end parallel
+      endif
+
+      !
+      ! ALE thickness alteration due to minimum and maximum thickness
+      !
+      if (useMinMaxThick) then
+!NV!     !!! NOT EXECUTING !!!
+         write(*,*) "ocn_ALE_thickness_gpu useMinMaxThick"
+
+         allocate(prelim_ALE_thickness  (nVertLevels), &
+                  min_ALE_thickness_down(nVertLevels), &
+                  min_ALE_thickness_up  (nVertLevels))
+
+         !$omp parallel
+         !$omp do schedule(runtime) &
+         !$omp    private(k, kMin, kMax, remainder, newThickness, &
+         !$omp            prelim_ALE_thickness, &
+         !$omp            min_ALE_thickness_down, min_ALE_thickness_up)
+         do iCell = 1, nCells
+            kMax = maxLevelCell(iCell)
+            kMin = minLevelCell(iCell)
+
+            ! go down the column:
+            do k = kMin, kMax
+               prelim_ALE_thickness(k) = ALE_thickness(k,iCell)
+            end do
+
+            remainder = 0.0_RKIND
+            do k = kMin, kMax
+               newThickness = max(minThick, &
+                            min(prelim_ALE_thickness(k) + remainder, &
+                                maxThickFact*restingThickness(k,iCell)))
+               min_ALE_thickness_down(k) = newThickness &
+                                         - prelim_ALE_thickness(k)
+               remainder = remainder - min_ALE_thickness_down(k)
+            end do
+
+            ! go back up the column:
+            min_ALE_thickness_up(kMax) = 0.0_RKIND
+            do k=kMin,kMax
+               prelim_ALE_thickness(k) = prelim_ALE_thickness(k) &
+                                       + min_ALE_thickness_down(k)
+            end do
+            do k = kMax-1, kMin, -1
+               newThickness = max(minThick, &
+                         min(prelim_ALE_thickness(k) + remainder, &
+                             maxThickFact * restingThickness(k,iCell)))
+               min_ALE_thickness_up(k) = newThickness &
+                                       - prelim_ALE_thickness(k)
+               remainder = remainder - min_ALE_thickness_up(k)
+            end do
+            min_ALE_thickness_up(kMin) = min_ALE_thickness_up(kMin) &
+                                       + remainder
+
+            do k=kMin,kMax
+               ALE_thickness(k,iCell) = ALE_thickness(k,iCell) &
+                                      + min_ALE_thickness_down(k) &
+                                      + min_ALE_thickness_up(k)
+
+            enddo
+         enddo
+         !$omp end do
+         !$omp end parallel
+
+         deallocate(prelim_ALE_thickness, &
+                    min_ALE_thickness_down, &
+                    min_ALE_thickness_up)
+
+      endif ! useMinMaxThick
+
+!$acc end data
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_ALE_thickness_gpu!}}}
 
 !***********************************************************************
 !

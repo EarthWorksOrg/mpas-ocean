@@ -44,6 +44,7 @@ module ocn_vel_forcing_surface_stress
    !--------------------------------------------------------------------
 
    public :: ocn_vel_forcing_surface_stress_tend, &
+             ocn_vel_forcing_surface_stress_tend_gpu, &
              ocn_vel_forcing_surface_stress_init
 
    !--------------------------------------------------------------------
@@ -132,21 +133,11 @@ contains
       if (surfaceStressOff) return
       call mpas_timer_start('vel surface stress')
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop &
-      !$acc    present(cellsOnEdge, minLevelEdgeBot, maxLevelEdgeTop, edgeMask, &
-      !$acc            sfcFlxAttCoeff, sfcStress, layerThickEdgeMean, &
-      !$acc            tend) &
-      !$acc    private(k, kmax, cell1, cell2, zBot, zTop, &
-      !$acc            attCoeff, attDepth, remainingStress, &
-      !$acc            transCoeffTop, transCoeffBot, absorb)
-#else
       !$omp parallel
       !$omp do schedule(runtime) &
       !$omp    private(k, kmax, cell1, cell2, zBot, zTop, &
       !$omp            attCoeff, attDepth, remainingStress, &
       !$omp            transCoeffTop, transCoeffBot, absorb)
-#endif
       do iEdge = 1, nEdgesOwned
         zTop     = 0.0_RKIND
         cell1 = cellsOnEdge(1,iEdge)
@@ -184,16 +175,131 @@ contains
                               layerThickEdgeMean(kmax,iEdge)
         end if
       enddo
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
 
       call mpas_timer_stop('vel surface stress')
 
    !--------------------------------------------------------------------
 
    end subroutine ocn_vel_forcing_surface_stress_tend!}}}
+
+   subroutine ocn_vel_forcing_surface_stress_tend_gpu(sfcFlxAttCoeff, &
+                               sfcStress, layerThickEdgeMean, tend, err)!{{{
+
+      !-----------------------------------------------------------------
+      ! input variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:), intent(in) :: &
+         sfcStress,    & !< [in] Wind stress at surface
+         sfcFlxAttCoeff  !< [in] attenuation coefficient for sfc fluxes
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         layerThickEdgeMean  !< [in] mean thickness at edge
+
+      !-----------------------------------------------------------------
+      ! input/output variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         tend            !< [inout] accumulated velocity tendency
+
+      !-----------------------------------------------------------------
+      ! output variables
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< [out] error flag
+
+      !-----------------------------------------------------------------
+      ! local variables
+      !-----------------------------------------------------------------
+
+      integer ::      &
+         iEdge, k,    &! loop indices for edge, vertical loops
+         kmax,        &! index of deepest active edge
+         cell1, cell2  ! neighbor cell addresses across edge
+
+      real (kind=RKIND) :: &
+         transCoeffTop,    &! transmission coefficent at top of edge
+         transCoeffBot,    &! transmission coefficent at bottom of edge
+         zTop, zBot,       &! depths at top and bottom of edge
+         remainingStress,  &! stress remaining at bottom of edge
+         absorb,           &! absorption fraction within layer
+         attDepth,         &! depth scaled by attenuation length
+         attCoeff           ! attenuation coefficient on edge
+
+      ! End preamble
+      !-----------------------------------------------------------------
+      ! Begin code
+
+      !*** Initialize error code and return if not on
+      !*** If turned on, start timer.
+
+      err = 0
+      if (surfaceStressOff) return
+      call mpas_timer_start('vel surface stress gpu')
+
+!$acc data present(cellsOnEdge,maxLevelEdgeTop,minLevelEdgeBot,edgeMask,&
+!$acc              sfcFlxAttCoeff,layerThickEdgeMean,tend,sfcStress)
+
+      !$omp parallel
+      !$omp do schedule(runtime) &
+      !$omp    private(k, kmax, cell1, cell2, zBot, zTop, &
+      !$omp            attCoeff, attDepth, remainingStress, &
+      !$omp            transCoeffTop, transCoeffBot, absorb)
+!$acc parallel
+!$acc loop gang vector private(zTop,cell1,cell2,attCoeff,attDepth,transCoeffTop,&
+!$acc                          remainingStress,kmax,zBot,absorb,transCoeffBot)
+      do iEdge = 1, nEdgesOwned
+        zTop     = 0.0_RKIND
+        cell1 = cellsOnEdge(1,iEdge)
+        cell2 = cellsOnEdge(2,iEdge)
+        attCoeff = 0.5_RKIND*(sfcFlxAttCoeff(cell1) &
+                            + sfcFlxAttCoeff(cell2))
+        attDepth = 0.0_RKIND
+        transCoeffTop = 1.0_RKIND
+        remainingStress = 1.0_RKIND
+        kmax = maxLevelEdgeTop(iEdge)
+!$acc loop seq
+        do k = minLevelEdgeBot(iEdge), kmax
+           zBot = zTop - layerThickEdgeMean(k,iEdge)
+           attDepth = max(zBot/attCoeff, maxAttDepth)
+
+           transCoeffBot = exp(attDepth)
+
+           absorb = transCoeffTop - transCoeffBot
+           remainingStress = remainingStress - absorb
+
+           tend(k,iEdge) =  tend(k,iEdge) + &
+                            edgeMask(k,iEdge)*sfcStress(iEdge) * &
+                            absorb/rho_sw/layerThickEdgeMean(k,iEdge)
+
+           zTop = zBot
+           transCoeffTop = transCoeffBot
+        enddo
+
+        !*** if there is any remaining stress at the bottom, add it
+        !*** to the bottom layer
+
+        if ( kmax > 0 .and. remainingStress > 0.0_RKIND) then
+           tend(kmax,iEdge) = tend(kmax,iEdge) &
+                            + edgeMask(kmax,iEdge)*sfcStress(iEdge)* &
+                              remainingStress/rho_sw/ &
+                              layerThickEdgeMean(kmax,iEdge)
+        end if
+      enddo
+!$acc end parallel
+      !$omp end do
+      !$omp end parallel
+
+!$acc end data
+
+      call mpas_timer_stop('vel surface stress gpu')
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_vel_forcing_surface_stress_tend_gpu!}}}
 
 !***********************************************************************
 !

@@ -46,6 +46,7 @@ module ocn_thick_surface_flux
    !--------------------------------------------------------------------
 
    public :: ocn_thick_surface_flux_tend, &
+             ocn_thick_surface_flux_tend_gpu, &
              ocn_thick_surface_flux_init
 
    !--------------------------------------------------------------------
@@ -123,17 +124,8 @@ contains
 
       call mpas_timer_start("thick surface flux")
 
-#ifdef MPAS_OPENACC
-      !$acc enter data copyin(transmissionCoefficients, transmissionCoefficientsRunoff)
-
-      !$acc parallel loop &
-      !$acc     present(tend, surfaceThicknessFlux, surfaceThicknessFluxRunoff, &
-      !$acc     transmissionCoefficients, transmissionCoefficientsRunoff, minLevelCell, maxLevelCell) &
-      !$acc     private(k, remainingFlux, remainingFluxRunoff)
-#else
       !$omp parallel
       !$omp do schedule(runtime) private(remainingFlux, remainingFluxRunoff, k)
-#endif
       do iCell = 1, nCellsOwned
         remainingFlux = 1.0_RKIND
         remainingFluxRunoff = 1.0_RKIND
@@ -154,20 +146,104 @@ contains
              + remainingFluxRunoff * surfaceThicknessFluxRunoff(iCell)
         end if
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
-
-#ifdef MPAS_OPENACC
-      !$acc exit data delete(transmissionCoefficients, transmissionCoefficientsRunoff)
-#endif
 
       call mpas_timer_stop("thick surface flux")
 
    !--------------------------------------------------------------------
 
    end subroutine ocn_thick_surface_flux_tend!}}}
+
+   subroutine ocn_thick_surface_flux_tend_gpu(transmissionCoefficients, transmissionCoefficientsRunoff, &
+      surfaceThicknessFlux, surfaceThicknessFluxRunoff, tend, err)!{{{
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         transmissionCoefficients,     &!< Input: Coefficients for the transmission of surface fluxes
+         transmissionCoefficientsRunoff !< Input: Coefficients for the transmission of surface fluxes due to river runoff
+
+      real (kind=RKIND), dimension(:), intent(in) :: &
+         surfaceThicknessFlux,       &!< Input: surface flux of thickness
+         surfaceThicknessFluxRunoff   !< Input: surface flux of thickness due to river runoff
+
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         tend          !< Input/Output: thickness tendency
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iCell, k
+
+      real (kind=RKIND) :: remainingFlux, remainingFluxRunoff
+
+      err = 0
+
+      if (.not. surfaceThicknessFluxOn) return
+
+      call mpas_timer_start("thick surface flux gpu")
+
+!$acc data present(minLevelCell,maxLevelCell,&
+!$acc              transmissionCoefficients,transmissionCoefficientsRunoff,surfaceThicknessFlux,surfaceThicknessFluxRunoff,tend)
+
+      !$omp parallel
+      !$omp do schedule(runtime) private(remainingFlux, remainingFluxRunoff, k)
+!$acc parallel
+!$acc loop gang vector private(remainingFlux,remainingFluxRunoff)
+      do iCell = 1, nCellsOwned
+        remainingFlux = 1.0_RKIND
+        remainingFluxRunoff = 1.0_RKIND
+!$acc loop seq
+        do k = minLevelCell(iCell), maxLevelCell(iCell)
+          remainingFlux = remainingFlux - transmissionCoefficients(k, iCell)
+          remainingFluxRunoff = remainingFluxRunoff - transmissionCoefficientsRunoff(k, iCell)
+
+          tend(k, iCell) = tend(k, iCell) + surfaceThicknessFlux(iCell) * transmissionCoefficients(k, iCell)  &
+                                          + surfaceThicknessFluxRunoff(iCell) * transmissionCoefficientsRunoff(k, iCell)
+        end do
+
+        if(maxLevelCell(iCell) > 0 .and. remainingFlux > 0.0_RKIND) then
+          tend(maxLevelCell(iCell), iCell) = tend(maxLevelCell(iCell), iCell) + remainingFlux * surfaceThicknessFlux(iCell)
+        end if
+
+        if(maxLevelCell(iCell) > 0 .and. remainingFluxRunoff > 0.0_RKIND) then
+          tend(maxLevelCell(iCell), iCell) = tend(maxLevelCell(iCell), iCell) &
+             + remainingFluxRunoff * surfaceThicknessFluxRunoff(iCell)
+        end if
+      end do
+!$acc end parallel
+      !$omp end do
+      !$omp end parallel
+
+!$acc end data
+
+      call mpas_timer_stop("thick surface flux gpu")
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_thick_surface_flux_tend_gpu!}}}
 
 !***********************************************************************
 !

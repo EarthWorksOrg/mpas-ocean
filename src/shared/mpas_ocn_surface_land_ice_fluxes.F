@@ -55,8 +55,11 @@ module ocn_surface_land_ice_fluxes
    !--------------------------------------------------------------------
 
    public :: ocn_surface_land_ice_fluxes_tracers, &
+             ocn_surface_land_ice_fluxes_tracers_gpu, &
              ocn_surface_land_ice_fluxes_vel, &
+             ocn_surface_land_ice_fluxes_vel_gpu, &
              ocn_surface_land_ice_fluxes_thick, &
+             ocn_surface_land_ice_fluxes_thick_gpu, &
              ocn_surface_land_ice_fluxes_build_arrays, &
              ocn_surface_land_ice_fluxes_init
 
@@ -138,6 +141,54 @@ contains
 
    end subroutine ocn_surface_land_ice_fluxes_tracers!}}}
 
+   subroutine ocn_surface_land_ice_fluxes_tracers_gpu(meshPool, groupName, forcingPool, tracersSurfaceFlux, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(in) :: meshPool !< Input: mesh information
+      character (len=*) :: groupName !< Input: Name of tracer group
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(inout) :: forcingPool !< Input: Forcing information
+      real (kind=RKIND), dimension(:,:), intent(inout) :: tracersSurfaceFlux !< Input/Output: Surface flux for tracer group
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: Error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      err = 0
+
+      if (.not.landIceFluxesOn) return
+!NV!  !!! NOT EXECUTING !!!
+      write(*,*) "ocn_surface_land_ice_fluxes_tracers_gpu NOT EXECUTING"
+
+      call mpas_timer_start("land_ice_" // trim(groupName) //" gpu")
+
+      if ( trim(groupName) == 'activeTracers' ) then
+         call ocn_surface_land_ice_fluxes_active_tracers_gpu(meshPool, forcingPool, tracersSurfaceFlux, err)
+      end if
+
+      call mpas_timer_stop("land_ice_" // trim(groupName) //" gpu")
+
+   end subroutine ocn_surface_land_ice_fluxes_tracers_gpu!}}}
+
 !***********************************************************************
 !
 !  routine ocn_surface_land_ice_fluxes_vel
@@ -191,38 +242,21 @@ contains
 
       call mpas_timer_start("top_drag", .false.)
 
-      !*** Transfer data to device
-      !$acc update device (topDrag, topDragMag)
-
       !*** simply add input values to accumulated stresses
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop &
-      !$acc    present(sfcStress, topDrag)
-#else
       !$omp parallel
       !$omp do schedule(runtime)
-#endif
       do iEdge = 1, nEdgesAll
         sfcStress(iEdge) = sfcStress(iEdge) + topDrag(iEdge)
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
-#endif
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop &
-      !$acc    present(sfcStressMag, topDragMag)
-#else
       !$omp do schedule(runtime)
-#endif
       do iCell = 1, nCellsAll
         sfcStressMag(iCell) = sfcStressMag(iCell) + topDragMag(iCell)
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
 
       !*** Transfer any needed data back to host and delete inputs
 
@@ -231,6 +265,72 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_surface_land_ice_fluxes_vel!}}}
+
+   subroutine ocn_surface_land_ice_fluxes_vel_gpu(&
+                                      sfcStress, sfcStressMag, err)!{{{
+
+      !-----------------------------------------------------------------
+      ! input variables
+      !-----------------------------------------------------------------
+
+      !-----------------------------------------------------------------
+      ! input/output variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:), intent(inout) :: &
+         sfcStress,  &!< [inout] accumulated surface stress
+         sfcStressMag !< [inout] accumulated surface stress magnitude
+
+      !-----------------------------------------------------------------
+      ! output variables
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< [out] Error flag
+
+      !-----------------------------------------------------------------
+      ! local variables
+      !-----------------------------------------------------------------
+
+      integer :: &
+         iEdge, iCell  ! loop indices for edge, cell loops
+
+      ! End preamble
+      !-----------------------------------------------------------------
+      ! Begin code
+
+      !*** set error flag and return early if land ice fluxes not on
+      !*** otherwise, start timer
+
+      err = 0
+      if (.not.landIceFluxesOn) return
+!NV!  !!! NOT EXECUTING !!!
+      write(*,*) "ocn_surface_land_ice_fluxes_vel_gpu NOT EXECUTING"
+
+      call mpas_timer_start("top_drag gpu", .false.)
+
+      !*** simply add input values to accumulated stresses
+
+      !$omp parallel
+      !$omp do schedule(runtime)
+      do iEdge = 1, nEdgesAll
+        sfcStress(iEdge) = sfcStress(iEdge) + topDrag(iEdge)
+      end do
+      !$omp end do
+
+      !$omp do schedule(runtime)
+      do iCell = 1, nCellsAll
+        sfcStressMag(iCell) = sfcStressMag(iCell) + topDragMag(iCell)
+      end do
+      !$omp end do
+      !$omp end parallel
+
+      !*** Transfer any needed data back to host and delete inputs
+
+      call mpas_timer_stop("top_drag gpu")
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_surface_land_ice_fluxes_vel_gpu!}}}
 
 !***********************************************************************
 !
@@ -282,28 +382,68 @@ contains
       call mpas_pool_get_array(forcingPool, 'landIceFreshwaterFlux', landIceFreshwaterFlux)
 
       ! Build surface fluxes at cell centers
-#ifdef MPAS_OPENACC
-      !$acc enter data copyin(landIceFreshwaterFlux)
-
-      !$acc parallel loop present(surfaceThicknessFlux, landIceFreshwaterFlux)
-#else
       !$omp parallel
       !$omp do schedule(runtime)
-#endif
       do iCell = 1, nCellsAll
         surfaceThicknessFlux(iCell) = surfaceThicknessFlux(iCell) + landIceFreshwaterFlux(iCell) / rho_sw
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
 
-#ifdef MPAS_OPENACC
-      !$acc exit data delete(landIceFreshwaterFlux)
-#endif
       call mpas_timer_stop("land_ice_thick")
 
    end subroutine ocn_surface_land_ice_fluxes_thick!}}}
+
+   subroutine ocn_surface_land_ice_fluxes_thick_gpu(forcingPool, surfaceThicknessFlux, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(inout) :: forcingPool !< Input: Forcing information
+      real (kind=RKIND), dimension(:), intent(inout) :: surfaceThicknessFlux !< Input/Output: Array for surface thickness flux
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: Error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iCell
+
+      real (kind=RKIND), dimension(:), pointer :: landIceFreshwaterFlux
+
+      err = 0
+
+      if (.not.landIceFluxesOn) return
+!NV!  !!! NOT EXECUTING !!!
+      write(*,*) "ocn_surface_land_ice_fluxes_thick_gpu NOT EXECUTING"
+
+      call mpas_timer_start("land_ice_thick gpu")
+
+      call mpas_pool_get_array(forcingPool, 'landIceFreshwaterFlux', landIceFreshwaterFlux)
+
+      ! Build surface fluxes at cell centers
+      !$omp parallel
+      !$omp do schedule(runtime)
+      do iCell = 1, nCellsAll
+        surfaceThicknessFlux(iCell) = surfaceThicknessFlux(iCell) + landIceFreshwaterFlux(iCell) / rho_sw
+      end do
+      !$omp end do
+      !$omp end parallel
+
+      call mpas_timer_stop("land_ice_thick gpu")
+
+   end subroutine ocn_surface_land_ice_fluxes_thick_gpu!}}}
 
 !***********************************************************************
 !
@@ -372,6 +512,61 @@ contains
       !$omp end parallel
 
    end subroutine ocn_surface_land_ice_fluxes_active_tracers!}}}
+
+   subroutine ocn_surface_land_ice_fluxes_active_tracers_gpu(meshPool, forcingPool, tracersSurfaceFlux, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(in) :: meshPool !< Input: mesh information
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+      type (mpas_pool_type), intent(inout) :: forcingPool !< Input: Forcing information
+      real (kind=RKIND), dimension(:,:), intent(inout) :: tracersSurfaceFlux
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: Error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iCell
+      integer, pointer :: nCells
+
+      real (kind=RKIND), dimension(:), pointer :: landIceHeatFlux
+
+      err = 0
+
+      if (.not.landIceFluxesOn) return
+
+      call mpas_pool_get_dimension(meshPool, 'nCells', nCells)
+
+      call mpas_pool_get_array(forcingPool, 'landIceHeatFlux', landIceHeatFlux)
+
+      ! add to surface fluxes at cell centers
+      !$omp parallel
+      !$omp do schedule(runtime)
+      do iCell = 1, nCells
+        tracersSurfaceFlux(1, iCell) = tracersSurfaceFlux(1, iCell) + landIceHeatFlux(iCell)/(rho_sw*cp_sw)
+      end do
+      !$omp end do
+      !$omp end parallel
+
+   end subroutine ocn_surface_land_ice_fluxes_active_tracers_gpu!}}}
 
 
 !***********************************************************************
@@ -461,6 +656,7 @@ contains
       err = 0
 
       if (.not.landIceStandaloneOn) return
+      write(*,*) "ocn_surface_land_ice_fluxes_build_arrays NOT EXECUTING"
 
       call mpas_timer_start("land_ice_build_arrays")
 

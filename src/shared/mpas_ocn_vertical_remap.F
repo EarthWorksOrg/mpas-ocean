@@ -169,15 +169,8 @@ module ocn_vertical_remap
       !$omp end do
       !$omp end parallel
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop &
-      !$acc    present(layerThickness, layerThickEdgeMean, &
-      !$acc            minLevelEdgeBot, maxLevelEdgeTop, cellsOnEdge) &
-      !$acc    private(k, kmin, kmax, cell1, cell2)
-#else
       !$omp parallel
       !$omp do schedule(runtime) private(k, kmin, kmax, cell1, cell2)
-#endif
       do iEdge = 1, nEdgesAll
          kmin = minLevelEdgeBot(iEdge)
          kmax = maxLevelEdgeTop(iEdge)
@@ -195,10 +188,8 @@ module ocn_vertical_remap
                                           layerThicknessNew(k,cell2))
          end do
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
 
       !$omp parallel
       !$omp do schedule(runtime) private(k, kTop, kBot, cell1, cell2)

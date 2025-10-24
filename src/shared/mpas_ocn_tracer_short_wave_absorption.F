@@ -38,6 +38,7 @@ module ocn_tracer_short_wave_absorption
    !--------------------------------------------------------------------
 
    public :: ocn_tracer_short_wave_absorption_tend, &
+             ocn_tracer_short_wave_absorption_tend_gpu, &
              ocn_tracer_short_wave_absorption_init
 
    !--------------------------------------------------------------------
@@ -132,6 +133,78 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_tracer_short_wave_absorption_tend!}}}
+
+   subroutine ocn_tracer_short_wave_absorption_tend_gpu(meshPool, swForcingPool, forcingPool, index_temperature, & !{{{
+                    layerThickness, penetrativeTemperatureFlux, penetrativeTemperatureFluxOBL, tend, &
+                    bottomLayerShortwaveTemperatureFlux, err)
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      type (mpas_pool_type), intent(in) :: &
+         meshPool, swForcingPool, forcingPool          !< Input: mesh information
+
+      real (kind=RKIND), dimension(:), intent(in) :: &
+         penetrativeTemperatureFlux !< Input: short wave heat flux
+
+      real (kind=RKIND), dimension(:), intent(inout) :: &
+         penetrativeTemperatureFluxOBL
+
+      real (kind=RKIND), dimension(:), intent(inout) :: &
+         bottomLayerShortwaveTemperatureFlux
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: layerThickness !< Input: Layer thicknesses
+
+      integer, intent(in) :: index_temperature
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:,:), intent(inout) :: &
+         tend          !< Input/Output: velocity tendency
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      if (trim(config_sw_absorption_type)=='none')  return
+
+      call mpas_timer_start("short wave gpu")
+
+      err = 0
+      if(useJerlov) then
+!NV!     !!! WORKING !!!
+         call ocn_tracer_short_wave_absorption_jerlov_tend_gpu(meshPool, forcingPool, index_temperature, layerThickness, &
+                                        penetrativeTemperatureFlux, penetrativeTemperatureFluxOBL, tend, &
+                                        bottomLayerShortwaveTemperatureFLux, err)
+      else
+!NV!     !!NOT EXECUTING !!!
+         write(*,*) "ocn_tracer_short_wave_absorption_tend_gpu NOT EXECUTING"
+         call ocn_tracer_short_wave_absorption_variable_tend_gpu(meshPool,swForcingPool, forcingPool, index_temperature, &
+                                        layerThickness, penetrativeTemperatureFlux, penetrativeTemperatureFluxOBL,tend, &
+                                        bottomLayerShortwaveTemperatureFlux, err)
+      endif
+
+      call mpas_timer_stop("short wave gpu")
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_tracer_short_wave_absorption_tend_gpu!}}}
 
 !***********************************************************************
 !

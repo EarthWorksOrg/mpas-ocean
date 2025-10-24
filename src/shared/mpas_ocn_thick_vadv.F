@@ -44,6 +44,7 @@ module ocn_thick_vadv
    !--------------------------------------------------------------------
 
    public :: ocn_thick_vadv_tend, &
+             ocn_thick_vadv_tend_gpu, &
              ocn_thick_vadv_init
 
    !--------------------------------------------------------------------
@@ -121,29 +122,96 @@ contains
 
       call mpas_timer_start("thick vadv")
 
-#ifdef MPAS_OPENACC
-      !$acc parallel loop &
-      !$acc     present(tend, vertAleTransportTop, minLevelCell, maxLevelCell) &
-      !$acc     private(k)
-#else
       !$omp parallel
       !$omp do schedule(runtime) private(k)
-#endif
       do iCell = 1, nCellsOwned
          do k = minLevelCell(iCell), maxLevelCell(iCell)
             tend(k,iCell) = tend(k,iCell) + vertAleTransportTop(k+1,iCell) - vertAleTransportTop(k,iCell)
          end do
       end do
-#ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
-#endif
 
       call mpas_timer_stop("thick vadv")
 
    !--------------------------------------------------------------------
 
    end subroutine ocn_thick_vadv_tend!}}}
+
+   subroutine ocn_thick_vadv_tend_gpu(vertAleTransportTop, tend, err)!{{{
+
+      !-----------------------------------------------------------------
+      !
+      ! input variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(in) :: &
+         vertAleTransportTop     !< Input: vertical velocity on top layer
+
+      !-----------------------------------------------------------------
+      !
+      ! input/output variables
+      !
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         tend          !< Input/Output: velocity tendency
+
+      !-----------------------------------------------------------------
+      !
+      ! output variables
+      !
+      !-----------------------------------------------------------------
+
+      integer, intent(out) :: err !< Output: Error flag
+
+      !-----------------------------------------------------------------
+      !
+      ! local variables
+      !
+      !-----------------------------------------------------------------
+
+      integer :: iCell, k
+
+      !-----------------------------------------------------------------
+      !
+      ! call relevant routines for computing tendencies
+      ! note that the user can choose multiple options and the
+      !   tendencies will be added together
+      !
+      !-----------------------------------------------------------------
+
+      err = 0
+
+      if(.not.thickVadvOn) return
+
+      call mpas_timer_start("thick vadv gpu")
+
+!$acc data present(minLevelCell,maxLevelCell,&
+!$acc              tend,vertAleTransportTop)
+
+      !$omp parallel
+      !$omp do schedule(runtime) private(k)
+!$acc parallel
+!$acc loop gang
+      do iCell = 1, nCellsOwned
+!$acc loop vector
+         do k = minLevelCell(iCell), maxLevelCell(iCell)
+            tend(k,iCell) = tend(k,iCell) + vertAleTransportTop(k+1,iCell) - vertAleTransportTop(k,iCell)
+         end do
+      end do
+!$acc end parallel
+      !$omp end do
+      !$omp end parallel
+
+!$acc end data
+
+      call mpas_timer_stop("thick vadv gpu")
+
+   !--------------------------------------------------------------------
+
+   end subroutine ocn_thick_vadv_tend_gpu!}}}
 
 !***********************************************************************
 !

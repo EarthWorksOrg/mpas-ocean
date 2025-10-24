@@ -38,10 +38,12 @@ module ocn_submesoscale_eddies
    public :: ocn_submesoscale_compute_velocity, &
              ocn_submesoscale_init,             &
              ocn_submesoscale_finalize,         &
-             ocn_MLE_add_to_transport_vel
+             ocn_MLE_add_to_transport_vel,      &
+             ocn_MLE_add_to_transport_vel_gpu
 
    real(kind=RKIND) :: tau, LfMin, Ce, dsMax
    real(kind=RKIND),dimension(:),allocatable :: time_scale
+!$acc declare create(time_scale)
 
   !***********************************************************************
 
@@ -204,6 +206,33 @@ module ocn_submesoscale_eddies
 
   end subroutine ocn_MLE_add_to_transport_vel
 
+  subroutine ocn_MLE_add_to_transport_vel_gpu(normalTransportVelocity, nEdges)
+
+     real(kind=RKIND), dimension(:,:), intent(inout) :: &
+         normalTransportVelocity
+
+     integer, intent(in) :: nEdges
+
+     integer :: iEdge, k
+
+     if (.not. config_submesoscale_enable) return
+!NV! !!! NOT EXECUTING !!!
+     write(*,*) "config_submesoscale_enable NOT EXECUTING"
+
+     !$omp parallel
+     !$omp do schedule(runtime) &
+     !$omp private(k)
+     do iEdge = 1, nEdges
+        do k = 1, nVertLevels
+           normalTransportVelocity(k,iEdge) = normalTransportVelocity(k,iEdge) + &
+               normalMLEvelocity(k,iEdge)
+        end do
+     end do
+     !$omp end do
+     !$omp end parallel
+
+  end subroutine ocn_MLE_add_to_transport_vel_gpu
+
   !***********************************************************************
   !
   !  routine ocn_submesoscale_init
@@ -235,6 +264,7 @@ module ocn_submesoscale_eddies
      end do
      !$omp end do
      !$omp end parallel
+!$acc update device(time_scale)
 
    end subroutine ocn_submesoscale_init
 
