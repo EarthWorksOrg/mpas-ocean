@@ -283,7 +283,7 @@ def _build_mpaso():
         user_cppdefs = '\"-DUSE_PIO2 -DMPAS_PIO_SUPPORT -D_MPI -DEXCLUDE_INIT_MODE -DMPAS_NO_ESMF_INIT -DMPAS_EXTERNAL_ESMF_LIB -DMPAS_PERF_MOD_TIMERS -DUSE_LAPACK'
         if gpu_type != 'none':
             user_cppdefs += ' -DMPAS_OPENACC -DMPAS_NVTX_RANGES '
-            fixedflags += ' -gopt -O4 -Mnosave -Mrecursive -Mstack_arrays -acc=gpu -Minfo=acc -gpu=lineinfo,cc80,safecache,mem:managed -cudalib=cublas '
+            fixedflags += ' -gopt -O4 -Mnosave -Mrecursive -Mstack_arrays -acc=gpu -Minfo=acc -gpu=lineinfo,cc80,safecache -cudalib=cublas '
         user_cppdefs += ' -DMPAS_NAMELIST_SUFFIX=ocean\"'
         fixedflags += '"'
 
