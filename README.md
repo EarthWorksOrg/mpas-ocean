@@ -1,3 +1,6 @@
+This work has been supported by the National Science Foundation under Grant
+[OAC‐2005137](https://www.nsf.gov/awardsearch/show-award/?AWD_ID=2005137) to Colorado State University.
+
 Notes for running and evaluating the ocean running on a gpu.
 
 Right now we are just doing this for the split-explicit version of the code - in user_nl_mpaso set 
